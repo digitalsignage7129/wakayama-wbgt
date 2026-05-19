@@ -11,20 +11,18 @@
             width: 100vw;
             height: 100vh;
             background-color: #f4f6f9;
-            font-family: Arial, sans-serif;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
             overflow: hidden !important;
             display: flex;
             justify-content: center;
             align-items: center;
         }
         .widget-box {
-            width: 100vw;
-            height: 100vh;
-            max-width: 690px;
-            max-height: 728px;
+            width: 690px;
+            height: 728px;
             background: #ffffff;
             box-sizing: border-box;
-            padding: 3vh 3vw;
+            padding: 25px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -34,23 +32,21 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2px solid #edf2f7;
-            height: 8vh; 
+            border-bottom: 3px solid #edf2f7;
+            height: 60px; 
         }
         .header h1 {
             margin: 0;
-            font-size: 3.8vw;
-            max-font-size: 24px;
+            font-size: 28px;
             color: #2d3748;
+            font-weight: bold;
         }
         .header .sub {
-            font-size: 2vw;
-            max-font-size: 12px;
+            font-size: 14px;
             color: #718096;
         }
         .weather-icon-txt {
-            font-size: 4.5vw;
-            max-font-size: 28px;
+            font-size: 32px;
             font-weight: bold;
             color: #3182ce;
         }
@@ -59,47 +55,44 @@
         .wbgt-section {
             background: #2ecc71;
             color: white;
-            border-radius: 12px;
-            padding: 1vh;
+            border-radius: 16px;
             text-align: center;
-            height: 30vh;
+            height: 230px;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
             justify-content: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
         }
         .wbgt-label {
-            font-size: 2.5vw;
-            max-font-size: 15px;
+            font-size: 18px;
             font-weight: bold;
-            margin-bottom: 2px;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
         }
         
-        /* WBGT数値の超巨大化設定（引き継ぎ） */
+        /* 🔥 文字が絶対に潰れない超巨大指定 */
         .wbgt-main-force {
-            font-size: 18vw !important;
-            max-font-size: 115px !important; 
+            font-size: 105px !important; 
             font-weight: 900 !important;
             margin: 0 !important;
-            line-height: 0.9 !important;
+            line-height: 1 !important;
             letter-spacing: -2px;
         }
         .wbgt-main-force span {
-            font-size: 8vw !important;
-            max-font-size: 50px !important;
-            font-weight: 700 !important;
+            font-size: 45px !important;
+            font-weight: bold !important;
             margin-left: 5px;
         }
         
         .wbgt-status {
-            font-size: 3.2vw;
-            max-font-size: 20px;
+            font-size: 24px;
             font-weight: bold;
-            background: rgba(0,0,0,0.2);
-            padding: 4px 18px;
+            background: rgba(0,0,0,0.25);
+            padding: 6px 24px;
             border-radius: 30px;
             display: inline-block;
-            margin-top: 8px;
+            margin-top: 10px;
             align-self: center;
         }
 
@@ -107,47 +100,45 @@
         .weather-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 1.2vw;
-            height: 9vh;
+            gap: 12px;
+            height: 75px;
+            margin-top: 5px;
         }
         .grid-item {
             background: #f7fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             text-align: center;
         }
         .grid-label {
-            font-size: 2vw;
-            max-font-size: 12px;
+            font-size: 14px;
             color: #718096;
+            font-weight: bold;
         }
         .grid-value {
-            font-size: 2.8vw;
-            max-font-size: 18px;
-            font-weight: 700;
+            font-size: 20px;
+            font-weight: bold;
+            color: #1a202c;
         }
 
         /* 予測テーブル */
         .forecast-section {
-            height: 39vh;
+            height: 270px;
             display: flex;
             flex-direction: column;
-            overflow: hidden !important;
-            margin-top: 1vh;
+            margin-top: 10px;
         }
         .forecast-title {
-            font-size: 2.2vw;
-            max-font-size: 13px;
-            font-weight: 700;
+            font-size: 16px;
+            font-weight: bold;
             color: #4a5568;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         }
         .table-wrapper {
             flex-grow: 1;
-            overflow: hidden !important;
         }
         .forecast-table {
             width: 100%;
@@ -155,37 +146,36 @@
         }
         .forecast-table th {
             background: #f7fafc;
-            color: #718096;
-            font-size: 2vw;
-            max-font-size: 12px;
-            padding: 5px 2px;
-            border-bottom: 2px solid #e2e8f0;
+            color: #4a5568;
+            font-size: 14px;
+            font-weight: bold;
+            padding: 6px 2px;
+            border-bottom: 3px solid #e2e8f0;
         }
         .forecast-table td {
-            padding: 0.8vh 2px; 
-            font-size: 2vw;
-            max-font-size: 12px;
-            color: #4a5568;
+            padding: 7px 2px; 
+            font-size: 14px;
+            font-weight: bold;
+            color: #2d3748;
             text-align: center;
             border-bottom: 1px solid #edf2f7;
         }
         .footer {
-            font-size: 1.8vw;
-            max-font-size: 11px;
+            font-size: 13px;
             color: #a0aec0;
             text-align: center;
-            border-top: 1px solid #edf2f7;
-            height: 4vh;
+            border-top: 2px solid #edf2f7;
+            height: 30px;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
 
 <div class="widget-box">
-    <!-- ヘッダー（和歌山市に変更） -->
     <div class="header">
         <div>
             <h1>和歌山市 気象ポータル</h1>
@@ -194,7 +184,6 @@
         <div id="weather-text" class="weather-icon-txt">--</div>
     </div>
 
-    <!-- メインカード -->
     <div class="wbgt-section" id="wbgt-card">
         <div class="wbgt-label" id="time-label">現在の暑さ指数 (WBGT)</div>
         <div class="wbgt-main-force"><span id="wbgt-num">--.-</span><span>℃</span></div>
@@ -231,7 +220,6 @@
 </div>
 
 <script>
-// 🗺️ 和歌山市湊1850番地付近の正確な緯度・経度に設定
 const lat = 34.2285;
 const lon = 135.1378;
 const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation_probability&timezone=Asia%2FTokyo&forecast_days=2`;
@@ -259,19 +247,6 @@ function getWbgtLevel(value) {
 
 function calcWbgt(temp, humidity) {
     return 0.725 * temp + 0.0368 * humidity + 0.00315 * temp * humidity - 3.2;
-}
-
-function adjustForDevice() {
-    const el = document.querySelectorAll('.header h1, .header .sub, .weather-icon-txt, .wbgt-label, .wbgt-status, .grid-label, .grid-value, .forecast-title, .forecast-table th, .forecast-table td, .footer');
-    el.forEach(e => {
-        const max = e.getAttribute('max-font-size');
-        if (max) {
-            const current = parseFloat(window.getComputedStyle(e).fontSize);
-            if (current > parseFloat(max)) {
-                e.style.fontSize = max;
-            }
-        }
-    });
 }
 
 async function updateDashboard() {
@@ -344,8 +319,6 @@ async function updateDashboard() {
 
         const rightNow = new Date();
         document.getElementById('update-time').innerText = `同期: ${rightNow.getMonth()+1}/${rightNow.getDate()} ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
-        
-        adjustForDevice();
 
     } catch (e) {
         statusEl.innerText = "再試行中...";
@@ -353,7 +326,6 @@ async function updateDashboard() {
 }
 
 updateDashboard();
-window.addEventListener('resize', adjustForDevice);
 setInterval(updateDashboard, 600000);
 </script>
 
