@@ -10,44 +10,44 @@
             padding: 0;
             width: 100vw;
             height: 100vh;
-            background-color: #f4f6f9;
+            background-color: #ffffff;
             font-family: 'Helvetica Neue', Arial, sans-serif;
             overflow: hidden !important;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
+        
         .widget-box {
-            width: 690px;
-            height: 728px;
-            background: #ffffff;
+            width: 100vw;
+            height: 100vh;
             box-sizing: border-box;
-            padding: 15px 25px;
+            padding: 1.5vh 3vw;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             overflow: hidden !important;
         }
+
+        /* ヘッダー */
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 5px solid #edf2f7;
-            height: 75px; 
+            height: 10vh;
         }
         .header h1 {
             margin: 0;
-            font-size: 38px;
+            font-size: 4.5vh;
             color: #2d3748;
             font-weight: 900;
+            line-height: 1.1;
         }
         .header .sub {
-            font-size: 18px;
+            font-size: 2vh;
             color: #718096;
             font-weight: bold;
         }
         .weather-icon-txt {
-            font-size: 46px;
+            font-size: 5.5vh;
             font-weight: 900;
             color: #3182ce;
         }
@@ -58,55 +58,71 @@
             color: white;
             border-radius: 24px;
             text-align: center;
-            height: 410px;
+            height: 60vh;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            box-shadow: 0 12px 30px rgba(0,0,0,0.15);
-            margin: 5px 0;
+            justify-content: space-between;
+            padding: 2vh 0;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
         .wbgt-label {
-            font-size: 28px;
+            font-size: 3.5vh;
             font-weight: bold;
             letter-spacing: 2px;
+            margin: 0;
+            line-height: 1;
         }
         
-        /* 🔥 限界突破：200pxの超ド級巨大数値 */
-        .wbgt-main-force {
-            font-size: 200px !important; 
-            font-weight: 900 !important;
-            margin: -25px 0 -15px 0 !important;
-            line-height: 1 !important;
-            letter-spacing: -5px;
+        /* 数字の表示エリア */
+        .wbgt-display-area {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 42vh;
+            margin: 0;
+            padding: 0;
         }
-        .wbgt-main-force span {
-            font-size: 75px !important;
+
+        /* 太さと文字間隔の調整 */
+        #wbgt-num {
             font-weight: 900 !important;
-            margin-left: 5px;
+            line-height: 0.9 !important;
+            letter-spacing: -6px !important;
+        }
+        /* 単位の「℃」のサイズも微調整 */
+        .wbgt-unit {
+            font-size: 9vh !important;
+            font-weight: 900 !important;
+            margin-left: 10px;
+            align-self: flex-end;
+            margin-bottom: 5vh;
         }
         
         .wbgt-status {
-            font-size: 40px;
+            font-size: 5vh;
             font-weight: 900;
             background: rgba(0,0,0,0.25);
-            padding: 6px 50px;
-            border-radius: 40px;
+            padding: 0.4vh 8vw;
+            border-radius: 50px;
             display: inline-block;
             align-self: center;
             letter-spacing: 2px;
+            margin: 0;
+            line-height: 1.2;
         }
 
         /* 気象グリッド */
         .weather-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            height: 120px;
+            gap: 2vw;
+            height: 18vh;
         }
         .grid-item {
             background: #f7fafc;
-            border: 3px solid #e2e8f0;
+            border: 4px solid #e2e8f0;
             border-radius: 16px;
             display: flex;
             flex-direction: column;
@@ -114,23 +130,25 @@
             text-align: center;
         }
         .grid-label {
-            font-size: 20px;
+            font-size: 2.5vh;
             color: #4a5568;
             font-weight: bold;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         .grid-value {
-            font-size: 30px;
+            font-size: 4.5vh;
             font-weight: 900;
             color: #1a202c;
+            line-height: 1;
         }
 
+        /* フッター */
         .footer {
-            font-size: 18px;
+            font-size: 2vh;
             color: #a0aec0;
             text-align: center;
-            border-top: 4px solid #edf2f7;
-            height: 45px;
+            border-top: 3px solid #edf2f7;
+            height: 4vh;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -151,7 +169,10 @@
 
     <div class="wbgt-section" id="wbgt-card">
         <div class="wbgt-label" id="time-label">現在の暑さ指数 (WBGT)</div>
-        <div class="wbgt-main-force"><span id="wbgt-num">--.-</span><span>℃</span></div>
+        <div class="wbgt-display-area">
+            <span id="wbgt-num">--.-</span>
+            <span class="wbgt-unit">℃</span>
+        </div>
         <div class="wbgt-status" id="wbgt-status">取得中...</div>
     </div>
 
@@ -221,7 +242,12 @@ async function updateDashboard() {
         const curWeather = getWeatherText(hourly.weather_code[currentIndex]);
 
         document.getElementById('weather-text').innerText = curWeather.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, '');
-        document.getElementById('wbgt-num').innerText = curWbgt;
+        
+        // 🛠️ 完璧な一回り小さいサイズ（32vh）に微調整
+        const numEl = document.getElementById('wbgt-num');
+        numEl.innerText = curWbgt;
+        numEl.style.setProperty('font-size', '32vh', 'important');
+
         document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
         document.getElementById('cur-humidity').innerText = `${curHumidity}%`;
         document.getElementById('cur-wind').innerText = `${curWind}m/s`;
