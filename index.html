@@ -22,7 +22,7 @@
             height: 728px;
             background: #ffffff;
             box-sizing: border-box;
-            padding: 30px;
+            padding: 15px 25px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -32,79 +32,77 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 4px solid #edf2f7;
-            height: 70px; 
+            border-bottom: 5px solid #edf2f7;
+            height: 75px; 
         }
         .header h1 {
             margin: 0;
-            font-size: 34px;
+            font-size: 38px;
             color: #2d3748;
             font-weight: 900;
         }
         .header .sub {
-            font-size: 16px;
+            font-size: 18px;
             color: #718096;
             font-weight: bold;
         }
         .weather-icon-txt {
-            font-size: 40px;
+            font-size: 46px;
             font-weight: 900;
             color: #3182ce;
         }
 
-        /* 暑さ指数エリア（限界まで縦幅を拡大） */
+        /* 暑さ指数エリア */
         .wbgt-section {
             background: #2ecc71;
             color: white;
             border-radius: 24px;
             text-align: center;
-            height: 380px;
+            height: 410px;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
             justify-content: center;
             box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+            margin: 5px 0;
         }
         .wbgt-label {
-            font-size: 26px;
+            font-size: 28px;
             font-weight: bold;
             letter-spacing: 2px;
-            margin-bottom: 0px;
         }
         
-        /* 🔥 画面の主役：超圧倒的巨大数値 */
+        /* 🔥 限界突破：200pxの超ド級巨大数値 */
         .wbgt-main-force {
-            font-size: 170px !important; 
+            font-size: 200px !important; 
             font-weight: 900 !important;
-            margin: -10px 0 !important;
+            margin: -25px 0 -15px 0 !important;
             line-height: 1 !important;
-            letter-spacing: -4px;
+            letter-spacing: -5px;
         }
         .wbgt-main-force span {
-            font-size: 65px !important;
+            font-size: 75px !important;
             font-weight: 900 !important;
             margin-left: 5px;
         }
         
         .wbgt-status {
-            font-size: 36px;
+            font-size: 40px;
             font-weight: 900;
             background: rgba(0,0,0,0.25);
-            padding: 8px 40px;
+            padding: 6px 50px;
             border-radius: 40px;
             display: inline-block;
-            margin-top: 10px;
             align-self: center;
-            letter-spacing: 1px;
+            letter-spacing: 2px;
         }
 
-        /* 気象グリッド（下部に配置し、1つずつを大型化） */
+        /* 気象グリッド */
         .weather-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 16px;
-            height: 110px;
-            margin-top: 10px;
+            height: 120px;
         }
         .grid-item {
             background: #f7fafc;
@@ -116,23 +114,23 @@
             text-align: center;
         }
         .grid-label {
-            font-size: 18px;
+            font-size: 20px;
             color: #4a5568;
             font-weight: bold;
             margin-bottom: 4px;
         }
         .grid-value {
-            font-size: 26px;
+            font-size: 30px;
             font-weight: 900;
             color: #1a202c;
         }
 
         .footer {
-            font-size: 16px;
+            font-size: 18px;
             color: #a0aec0;
             text-align: center;
-            border-top: 3px solid #edf2f7;
-            height: 40px;
+            border-top: 4px solid #edf2f7;
+            height: 45px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -151,14 +149,12 @@
         <div id="weather-text" class="weather-icon-txt">--</div>
     </div>
 
-    <!-- メインのWBGT（巨大化） -->
     <div class="wbgt-section" id="wbgt-card">
         <div class="wbgt-label" id="time-label">現在の暑さ指数 (WBGT)</div>
         <div class="wbgt-main-force"><span id="wbgt-num">--.-</span><span>℃</span></div>
         <div class="wbgt-status" id="wbgt-status">取得中...</div>
     </div>
 
-    <!-- 気象グリッド（巨大化） -->
     <div class="weather-grid">
         <div class="grid-item"><div class="grid-label">気温</div><div class="grid-value" id="cur-temp">--.-℃</div></div>
         <div class="grid-item"><div class="grid-label">湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
