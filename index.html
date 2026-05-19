@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>和歌山市 WBGTダッシュボード</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #f4f6f9;
+            font-family: Arial, sans-serif;
+            overflow: hidden !important;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .widget-box {
+            width: 100vw;
+            height: 100vh;
+            max-width: 690px;
+            max-height: 728px;
+            background: #ffffff;
+            box-sizing: border-box;
+            padding: 3vh 3vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden !important;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #edf2f7;
+            height: 8vh; 
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 3.8vw;
+            max-font-size: 24px;
+            color: #2d3748;
+        }
+        .header .sub {
+            font-size: 2vw;
+            max-font-size: 12px;
+            color: #718096;
+        }
+        .weather-icon-txt {
+            font-size: 4.5vw;
+            max-font-size: 28px;
+            font-weight: bold;
+            color: #3182ce;
+        }
+
+        /* 暑さ指数エリア */
+        .wbgt-section {
+            background: #2ecc71;
+            color: white;
+            border-radius: 12px;
+            padding: 1vh;
+            text-align: center;
+            height: 30vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .wbgt-label {
+            font-size: 2.5vw;
+            max-font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        
+        /* WBGT数値の超巨大化設定（引き継ぎ） */
+        .wbgt-main-force {
+            font-size: 18vw !important;
+            max-font-size: 115px !important; 
+            font-weight: 900 !important;
+            margin: 0 !important;
+            line-height: 0.9 !important;
+            letter-spacing: -2px;
+        }
+        .wbgt-main-force span {
+            font-size: 8vw !important;
+            max-font-size: 50px !important;
+            font-weight: 700 !important;
+            margin-left: 5px;
+        }
+        
+        .wbgt-status {
+            font-size: 3.2vw;
+            max-font-size: 20px;
+            font-weight: bold;
+            background: rgba(0,0,0,0.2);
+            padding: 4px 18px;
+            border-radius: 30px;
+            display: inline-block;
+            margin-top: 8px;
+            align-self: center;
+        }
+
+        /* 気象グリッド */
+        .weather-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.2vw;
+            height: 9vh;
+        }
+        .grid-item {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+        }
+        .grid-label {
+            font-size: 2vw;
+            max-font-size: 12px;
+            color: #718096;
+        }
+        .grid-value {
+            font-size: 2.8vw;
+            max-font-size: 18px;
+            font-weight: 700;
+        }
+
+        /* 予測テーブル */
+        .forecast-section {
+            height: 39vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden !important;
+            margin-top: 1vh;
+        }
+        .forecast-title {
+            font-size: 2.2vw;
+            max-font-size: 13px;
+            font-weight: 700;
+            color: #4a5568;
+            margin-bottom: 4px;
+        }
+        .table-wrapper {
+            flex-grow: 1;
+            overflow: hidden !important;
+        }
+        .forecast-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .forecast-table th {
+            background: #f7fafc;
+            color: #718096;
+            font-size: 2vw;
+            max-font-size: 12px;
+            padding: 5px 2px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .forecast-table td {
+            padding: 0.8vh 2px; 
+            font-size: 2vw;
+            max-font-size: 12px;
+            color: #4a5568;
+            text-align: center;
+            border-bottom: 1px solid #edf2f7;
+        }
+        .footer {
+            font-size: 1.8vw;
+            max-font-size: 11px;
+            color: #a0aec0;
+            text-align: center;
+            border-top: 1px solid #edf2f7;
+            height: 4vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="widget-box">
+    <!-- ヘッダー（和歌山市に変更） -->
+    <div class="header">
+        <div>
+            <h1>和歌山市 気象ポータル</h1>
+            <div class="sub">和歌山 湊 観測情報</div>
+        </div>
+        <div id="weather-text" class="weather-icon-txt">--</div>
+    </div>
+
+    <!-- メインカード -->
+    <div class="wbgt-section" id="wbgt-card">
+        <div class="wbgt-label" id="time-label">現在の暑さ指数 (WBGT)</div>
+        <div class="wbgt-main-force"><span id="wbgt-num">--.-</span><span>℃</span></div>
+        <div class="wbgt-status" id="wbgt-status">取得中...</div>
+    </div>
+
+    <div class="weather-grid">
+        <div class="grid-item"><div class="grid-label">気温</div><div class="grid-value" id="cur-temp">--.-℃</div></div>
+        <div class="grid-item"><div class="grid-label">湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
+        <div class="grid-item"><div class="grid-label">風速</div><div class="grid-value" id="cur-wind">--.-m/s</div></div>
+        <div class="grid-item"><div class="grid-label">降水</div><div class="grid-value" id="cur-pop">--%</div></div>
+    </div>
+
+    <div class="forecast-section">
+        <div class="forecast-title">⏰ 今後の気象・WBGT予測 (3時間ごと)</div>
+        <div class="table-wrapper">
+            <table class="forecast-table">
+                <thead>
+                    <tr>
+                        <th>時間</th>
+                        <th>天気</th>
+                        <th>気温</th>
+                        <th>湿度</th>
+                        <th>風速</th>
+                        <th>WBGT</th>
+                    </tr>
+                </thead>
+                <tbody id="forecast-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer" id="update-time">Open-Meteo 自動更新</div>
+</div>
+
+<script>
+// 🗺️ 和歌山市湊1850番地付近の正確な緯度・経度に設定
+const lat = 34.2285;
+const lon = 135.1378;
+const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation_probability&timezone=Asia%2FTokyo&forecast_days=2`;
+
+function getWeatherText(code) {
+    if (code === 0) return "☀️晴";
+    if (code === 1 || code === 2 || code === 3) return "⛅晴曇";
+    if (code === 45 || code === 48) return "🌫️霧";
+    if (code === 51 || code === 53 || code === 55) return "🌧️小雨";
+    if (code === 61 || code === 63 || code === 65) return "☔雨";
+    if (code === 71 || code === 73 || code === 75) return "❄️雪";
+    if (code === 80 || code === 81 || code === 82) return "🌦️雨";
+    if (code === 95 || code === 96) return "⚡雷雨";
+    return "☁️曇";
+}
+
+function getWbgtLevel(value) {
+    const v = parseFloat(value);
+    if (v >= 31) return { color: '#e74c3c', text: '危険（運動中止）' };
+    if (v >= 28) return { color: '#e67e22', text: '厳重警戒' };
+    if (v >= 25) return { color: '#f1c40f', text: '警戒' };
+    if (v >= 21) return { color: '#3498db', text: '注意' };
+    return { color: '#2ecc71', text: 'ほぼ安全' };
+}
+
+function calcWbgt(temp, humidity) {
+    return 0.725 * temp + 0.0368 * humidity + 0.00315 * temp * humidity - 3.2;
+}
+
+function adjustForDevice() {
+    const el = document.querySelectorAll('.header h1, .header .sub, .weather-icon-txt, .wbgt-label, .wbgt-status, .grid-label, .grid-value, .forecast-title, .forecast-table th, .forecast-table td, .footer');
+    el.forEach(e => {
+        const max = e.getAttribute('max-font-size');
+        if (max) {
+            const current = parseFloat(window.getComputedStyle(e).fontSize);
+            if (current > parseFloat(max)) {
+                e.style.fontSize = max;
+            }
+        }
+    });
+}
+
+async function updateDashboard() {
+    const statusEl = document.getElementById('wbgt-status');
+    try {
+        const res = await fetch(apiUrl);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        
+        const hourly = data.hourly;
+        const now = new Date();
+        
+        let currentIndex = 0;
+        for (let i = 0; i < hourly.time.length; i++) {
+            if (new Date(hourly.time[i]) >= now) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        const curTemp = hourly.temperature_2m[currentIndex];
+        const curHumidity = hourly.relative_humidity_2m[currentIndex];
+        const curWind = (hourly.wind_speed_10m[currentIndex] / 3.6).toFixed(1);
+        const curPop = hourly.precipitation_probability[currentIndex];
+        const curWbgt = calcWbgt(curTemp, curHumidity).toFixed(1);
+        const curWeather = getWeatherText(hourly.weather_code[currentIndex]);
+
+        document.getElementById('weather-text').innerText = curWeather.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, '');
+        document.getElementById('wbgt-num').innerText = curWbgt;
+        document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
+        document.getElementById('cur-humidity').innerText = `${curHumidity}%`;
+        document.getElementById('cur-wind').innerText = `${curWind}m/s`;
+        document.getElementById('cur-pop').innerText = `${curPop}%`;
+
+        const level = getWbgtLevel(curWbgt);
+        document.getElementById('wbgt-card').style.backgroundColor = level.color;
+        statusEl.innerText = level.text;
+
+        const timeObj = new Date(hourly.time[currentIndex]);
+        document.getElementById('time-label').innerText = `現在（${timeObj.getHours()}:00）の暑さ指数`;
+
+        const tbody = document.getElementById('forecast-tbody');
+        tbody.innerHTML = '';
+
+        let rowCount = 0;
+        for (let i = currentIndex; i < hourly.time.length; i++) {
+            if (rowCount >= 6) break;
+            if ((i - currentIndex) % 3 !== 0) continue;
+
+            const fTime = new Date(hourly.time[i]);
+            const fTemp = hourly.temperature_2m[i];
+            const fHum = hourly.relative_humidity_2m[i];
+            const fWind = (hourly.wind_speed_10m[i] / 3.6).toFixed(1);
+            const fWbgt = calcWbgt(fTemp, fHum).toFixed(1);
+            const fWeather = getWeatherText(hourly.weather_code[i]);
+            const fLevel = getWbgtLevel(fWbgt);
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${fTime.getDate()}日${fTime.getHours()}時</td>
+                <td>${fWeather}</td>
+                <td>${fTemp.toFixed(1)}℃</td>
+                <td>${fHum}%</td>
+                <td>${fWind}m</td>
+                <td style="font-weight:bold; color:${fLevel.color}">${fWbgt}℃</td>
+            `;
+            tbody.appendChild(row);
+            rowCount++;
+        }
+
+        const rightNow = new Date();
+        document.getElementById('update-time').innerText = `同期: ${rightNow.getMonth()+1}/${rightNow.getDate()} ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
+        
+        adjustForDevice();
+
+    } catch (e) {
+        statusEl.innerText = "再試行中...";
+    }
+}
+
+updateDashboard();
+window.addEventListener('resize', adjustForDevice);
+setInterval(updateDashboard, 600000);
+</script>
+
+</body>
+</html>
