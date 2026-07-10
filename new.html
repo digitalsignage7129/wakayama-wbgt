@@ -52,7 +52,7 @@
         }
 
         .wbgt-section {
-            background: #2ecc71;
+            background: #718096;
             color: white;
             border-radius: 24px;
             text-align: center;
@@ -156,9 +156,9 @@
     <div class="header">
         <div>
             <h1>和歌山市 気象ポータル</h1>
-            <div class="sub">和歌山市（気象庁公式データ・スタンドアロン版）</div>
+            <div class="sub">和歌山市（気象庁公式データ 自動抽出版）</div>
         </div>
-        <div id="weather-text" class="weather-icon-txt">☀️</div>
+        <div id="weather-text" class="weather-icon-txt">--</div>
     </div>
 
     <div class="wbgt-section" id="wbgt-card">
@@ -167,18 +167,31 @@
             <span id="wbgt-num">--.-</span>
             <span class="wbgt-unit">℃</span>
         </div>
-        <div class="wbgt-status" id="wbgt-status">データ読み込み中...</div>
+        <div class="wbgt-status" id="wbgt-status">データ取得中...</div>
     </div>
 
     <div class="weather-grid">
-        <div class="grid-item"><div class="grid-label">現在の気温</div><div class="grid-value" id="cur-temp">30.8℃</div></div>
-        <div class="grid-item"><div class="grid-label">現在の湿度</div><div class="grid-value" id="cur-humidity">64%</div></div>
+        <div class="grid-item"><div class="grid-label">現在の気温</div><div class="grid-value" id="cur-temp">--.-℃</div></div>
+        <div class="grid-item"><div class="grid-label">現在の湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
     </div>
 
-    <div class="footer" id="update-time">気象庁サイトデータ同期システム</div>
+    <div class="footer" id="update-time">気象庁サイトデータ同期中...</div>
 </div>
 
 <script>
+const JMA_URL = "https://www.jma.go.jp/bosai/forecast/data/forecast/300000.json";
+// 一番プロキシブロックが起きにくいAllOriginsを使用（キャッシュ破りのためのタイムスタンプ付与）
+const PROXY_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(JMA_URL)}&_=${Date.now()}`;
+
+function getWeatherName(code) {
+    const c = parseInt(code);
+    if ([100, 101, 123, 130].includes(c)) return "☀️晴れ";
+    if ([102, 104, 200, 201, 210, 270].includes(c)) return "⛅曇晴";
+    if ([202, 203, 204, 208, 300].includes(c)) return "☁️曇り";
+    if ([301, 302, 303, 350, 400].includes(c)) return "☔雨";
+    return "☁️曇り";
+}
+
 function getWbgtLevel(value) {
     const v = parseFloat(value);
     if (v >= 31) return { color: '#e74c3c', text: '危険（運動中止）' };
@@ -188,49 +201,102 @@ function getWbgtLevel(value) {
     return { color: '#2ecc71', text: 'ほぼ安全' };
 }
 
-// 日本生気象学会公式ベースのWBGT換算式
 function calcWbgt(temp, humidity) {
     return 0.725 * temp + 0.0368 * humidity + 0.00315 * temp * humidity - 3.0;
 }
 
-function updateDashboard() {
+async function updateDashboard() {
     const statusEl = document.getElementById('wbgt-status');
     try {
-        // 気象庁Webサイトが今まさに表示しているターゲット値をベースに固定・直接同期
-        // プロキシを介さずブラウザ内部で安全に処理するため、CORSエラーによる読み込みストップが起きません
-        const curTemp = 30.8;
-        const curHumidity = 64;
-
-        // 画面の数値を完全同期
-        document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
-        document.getElementById('cur-humidity').innerText = `${Math.round(curHumidity)}%`;
-
-        // 抜き出した正確な数値からWBGTを確実に算出
-        const curWbgt = calcWbgt(curTemp, curHumidity).toFixed(1);
+        const res = await fetch(PROXY_URL);
+        if (!res.ok) throw new Error("通信失敗");
         
-        const numEl = document.getElementById('wbgt-num');
-        numEl.innerText = curWbgt;
-        numEl.style.setProperty('font-size', '32vh', 'important');
+        const wrapper = await res.json();
+        const rawData = JSON.parse(wrapper.contents);
 
-        // 安全レベルに応じた背景色の変更
-        const level = getWbgtLevel(curWbgt);
-        document.getElementById('wbgt-card').style.backgroundColor = level.color;
-        statusEl.innerText = level.text;
+        // 気象庁の「時系列予報（data[1]）」から和歌山（県全体または北部）のデータを探す
+        const timeSeriesGroup = rawData[1].timeSeries;
+        let times = [];
+        let temps = [];
+        let humidities = [];
 
-        const rightNow = new Date();
-        document.getElementById('time-label').innerText = `気象庁発表（${rightNow.getHours()}:00時点）の連動暑さ指数`;
-        document.getElementById('update-time').innerText = `気象庁公式データ同期中: ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
+        timeSeriesGroup.forEach(series => {
+            // 気象庁の構造上、気温と湿度は「300000（和歌山県）」のエリアデータの中にまとまって入っています
+            if (series.areas[0].area.code === "300000" || series.areas[0].area.code === "3020100") {
+                if (series.data.temperature) {
+                    times = series.timeDefines;
+                    temps = series.data.temperature;
+                }
+                if (series.data.humidity) {
+                    humidities = series.data.humidity;
+                }
+            }
+        });
+
+        if (times.length === 0 || temps.length === 0) {
+            throw new Error("対象データが見つかりません");
+        }
+
+        // 現在時刻に一番近いデータのインデックスをリアルタイムに計算して見つける
+        const now = new Date();
+        let targetIndex = 0;
+        let minDiff = Infinity;
+
+        for (let i = 0; i < times.length; i++) {
+            const diff = Math.abs(now - new Date(times[i]));
+            if (diff < minDiff) {
+                minDiff = diff;
+                targetIndex = i;
+            }
+        }
+
+        // 気象庁のデータから、現在時刻に該当する数値を自動抽出
+        const curTemp = parseFloat(temps[targetIndex]);
+        
+        // 湿度は配列数が少ない場合があるため、確実にデータが存在する位置から自動フォールバック抽出
+        let curHumidity = humidities[targetIndex] !== undefined ? parseFloat(humidities[targetIndex]) : parseFloat(humidities[0]);
+
+        if (!isNaN(curTemp) && !isNaN(curHumidity)) {
+            // 自動取得した本物の気象庁データを画面に反映
+            document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
+            document.getElementById('cur-humidity').innerText = `${Math.round(curHumidity)}%`;
+
+            // そのデータからWBGTをリアルタイム計算
+            const curWbgt = calcWbgt(curTemp, curHumidity).toFixed(1);
+            
+            const numEl = document.getElementById('wbgt-num');
+            numEl.innerText = curWbgt;
+            numEl.style.setProperty('font-size', '32vh', 'important');
+
+            // 天気コード（data[0]から取得）の自動反映
+            if (rawData[0] && rawData[0].timeSeries[0].areas[0].weatherCodes) {
+                const code = rawData[0].timeSeries[0].areas[0].weatherCodes[0];
+                document.getElementById('weather-text').innerText = getWeatherName(code);
+            }
+
+            // 安全レベルに応じた背景色の自動変更
+            const level = getWbgtLevel(curWbgt);
+            document.getElementById('wbgt-card').style.backgroundColor = level.color;
+            statusEl.innerText = level.text;
+
+            const timeObj = new Date(times[targetIndex]);
+            document.getElementById('time-label').innerText = `気象庁自動取得（${timeObj.getHours()}:00時点）の暑さ指数`;
+            
+            const rightNow = new Date();
+            document.getElementById('update-time').innerText = `最新データ同期完了: ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
+        } else {
+            throw new Error("数値変換に失敗しました");
+        }
 
     } catch (e) {
-        statusEl.innerText = "同期再試行中...";
-        console.error("同期エラー:", e);
+        statusEl.innerText = "データ解析エラー";
+        console.error("同期失敗:", e);
     }
 }
 
-// 起動
 updateDashboard();
-// 5分ごとに自動更新
-setInterval(updateDashboard, 300000);
+// 10分ごとに気象庁の最新データへ完全自動更新
+setInterval(updateDashboard, 600000);
 </script>
 
 </body>
