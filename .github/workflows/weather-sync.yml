@@ -14,15 +14,19 @@ jobs:
 
       - name: Fetch Latest Amedas Data
         run: |
-          # 1. 気象庁の最新データ更新時刻を取得
+          # 1. 気象庁の最新データ更新時刻を取得（例: 2026-07-10T15:00:00+09:00）
           curl -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
                "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt" -o latest_time.txt
           
-          LATEST_TIME=$(cat latest_time.txt)
-          echo "Latest time is: ${LATEST_TIME}"
+          RAW_TIME=$(cat latest_time.txt)
+          echo "Raw time from JMA: ${RAW_TIME}"
           
-          # 2. 正しいエンドポイントURLで全国アメダス実況JSONをダウンロード
-          # ※404エラーの場合はファイルを保存させないセーフティを追加
+          # 2. 記号を取り除いて YYYYMMDDHHMMSS 形式に変換（例: 20260710150000）
+          # ハイフン、コロン、プラス記号、Tを削り、先頭の14桁（秒まで）を切り出す
+          LATEST_TIME=$(echo "${RAW_TIME}" | sed 's/[-:+T]//g' | cut -c 1-14)
+          echo "Formatted time for URL: ${LATEST_TIME}"
+          
+          # 3. 正しいURLでダウンロードを実行（404なら処理を落とす -f フラグ付き）
           curl -f -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
                "https://www.jma.go.jp/bosai/amedas/data/map/${LATEST_TIME}.json" -o amedas_now.json
 
