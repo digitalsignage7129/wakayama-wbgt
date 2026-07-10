@@ -2,7 +2,7 @@ name: JMA Amedas Realtime Sync
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # 5分ごとに実行
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -14,12 +14,17 @@ jobs:
 
       - name: Fetch Latest Amedas Data
         run: |
-          # 1. 気象庁が公開している「最新のアメダスデータ時間」を取得 (例: 20260710145000)
-          curl -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt" -o latest_time.txt
-          LATEST_TIME=$(cat latest_time.txt)
+          # 1. 気象庁の最新データ更新時刻を取得
+          curl -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+               "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt" -o latest_time.txt
           
-          # 2. その最新時間の全国アメダスデータJSONをピンポイントでダウンロード
-          curl -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/map/${LATEST_TIME}.json" -o amedas_now.json
+          LATEST_TIME=$(cat latest_time.txt)
+          echo "Latest time is: ${LATEST_TIME}"
+          
+          # 2. 正しいエンドポイントURLで全国アメダス実況JSONをダウンロード
+          # ※404エラーの場合はファイルを保存させないセーフティを追加
+          curl -f -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+               "https://www.jma.go.jp/bosai/amedas/data/map/${LATEST_TIME}.json" -o amedas_now.json
 
       - name: Commit and Push if changed
         run: |
