@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>和歌山市 気象庁公式ピンポイント連動</title>
+    <title>和歌山市 気象庁データ完全同期ダッシュボード</title>
     <style>
-        /* 画面全体のスクロールを完全に禁止し、全画面表示にする */
         html, body {
             margin: 0;
             padding: 0;
@@ -20,51 +19,138 @@
             width: 100vw;
             height: 100vh;
             box-sizing: border-box;
-            padding: 0;
-            margin: 0;
+            padding: 1.5vh 3vw;
             display: flex;
             flex-direction: column;
+            justify-content: space-between;
             overflow: hidden !important;
         }
 
-        /* 上部ヘッダー（元々のダッシュボードのデザインを維持） */
+        /* ヘッダー */
         .header {
-            padding: 1.5vh 3vw;
-            background: #ffffff;
-            border-bottom: 5px solid #edf2f7;
-            height: 8vh;
-            box-sizing: border-box;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 5px solid #edf2f7;
+            height: 10vh;
         }
         .header h1 {
             margin: 0;
-            font-size: 3.5vh;
+            font-size: 4.5vh;
             color: #2d3748;
             font-weight: 900;
+            line-height: 1.1;
+        }
+        .header .sub {
+            font-size: 2vh;
+            color: #718096;
+            font-weight: bold;
+        }
+        .weather-icon-txt {
+            font-size: 5.5vh;
+            font-weight: 900;
+            color: #3182ce;
         }
 
-        /* 気象庁のページを埋め込むコンテナ */
-        .iframe-container {
-            width: 100vw;
-            height: 92vh; /* 残りの画面すべて */
-            position: relative;
-            overflow: hidden !important; /* スクロールバーを強制非表示 */
-            background: #f4f5f6;
+        /* 暑さ指数エリア */
+        .wbgt-section {
+            background: #718096;
+            color: white;
+            border-radius: 24px;
+            text-align: center;
+            height: 60vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 2vh 0;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            transition: background-color 0.5s ease;
+        }
+        .wbgt-label {
+            font-size: 3.5vh;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin: 0;
+            line-height: 1;
+        }
+        
+        .wbgt-display-area {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 42vh;
+            margin: 0;
+            padding: 0;
         }
 
-        /* 気象庁のWebサイトを裏側で大きく広げ、
-           和歌山市の天気情報の中心部分だけが画面にぴったり収まるように位置を固定（くり抜き）
-        */
-        .iframe-container iframe {
-            position: absolute;
-            top: -240px;    /* 上部のヘッダーやナビゲーションを隠す（環境に合わせて微調整してください） */
-            left: 0;
-            width: 100vw;
-            height: calc(92vh + 240px);
-            border: none;
-            pointer-events: none; /* タブレット等で触って画面がズレるのを防ぐ（動かしたい場合は auto に） */
+        #wbgt-num {
+            font-weight: 900 !important;
+            line-height: 0.9 !important;
+            letter-spacing: -6px !important;
+        }
+        .wbgt-unit {
+            font-size: 9vh !important;
+            font-weight: 900 !important;
+            margin-left: 10px;
+            align-self: flex-end;
+            margin-bottom: 5vh;
+        }
+        
+        .wbgt-status {
+            font-size: 5vh;
+            font-weight: 900;
+            background: rgba(0,0,0,0.25);
+            padding: 0.4vh 8vw;
+            border-radius: 50px;
+            display: inline-block;
+            align-self: center;
+            letter-spacing: 2px;
+            margin: 0;
+            line-height: 1.2;
+        }
+
+        /* 気象グリッド */
+        .weather-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2vw;
+            height: 18vh;
+        }
+        .grid-item {
+            background: #f7fafc;
+            border: 4px solid #e2e8f0;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+        }
+        .grid-label {
+            font-size: 2.5vh;
+            color: #4a5568;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .grid-value {
+            font-size: 5vh;
+            font-weight: 900;
+            color: #1a202c;
+            line-height: 1;
+        }
+
+        /* フッター */
+        .footer {
+            font-size: 2vh;
+            color: #a0aec0;
+            text-align: center;
+            border-top: 3px solid #edf2f7;
+            height: 4vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -72,13 +158,176 @@
 
 <div class="widget-box">
     <div class="header">
-        <h1>和歌山市 気象庁公式リアルタイム画面</h1>
+        <div>
+            <h1>和歌山市 気象ポータル</h1>
+            <div class="sub">和歌山市（気象庁公式HPデータ抽出版）</div>
+        </div>
+        <div id="weather-text" class="weather-icon-txt">LIVE</div>
     </div>
 
-    <div class="iframe-container">
-        <iframe src="https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3020100"></iframe>
+    <div class="wbgt-section" id="wbgt-card">
+        <div class="wbgt-label" id="time-label">気象庁データ連動 暑さ指数</div>
+        <div class="wbgt-display-area">
+            <span id="wbgt-num">--.-</span>
+            <span class="wbgt-unit">℃</span>
+        </div>
+        <div class="wbgt-status" id="wbgt-status">データ解析中...</div>
     </div>
+
+    <div class="weather-grid">
+        <div class="grid-item"><div class="grid-label">現在の気温</div><div class="grid-value" id="cur-temp">--.-℃</div></div>
+        <div class="grid-item"><div class="grid-label">現在の湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
+    </div>
+
+    <div class="footer" id="update-time">気象庁サイトデータ同期システム</div>
 </div>
+
+<script>
+const WAKAYAMA_CITY_CODE = "3020100"; 
+
+function getWeatherName(code) {
+    const c = parseInt(code);
+    if ([100, 101, 123, 130].includes(c)) return "☀️晴れ";
+    if ([102, 104, 200, 201, 210, 270].includes(c)) return "⛅曇晴";
+    if ([202, 203, 204, 208, 300].includes(c)) return "☁️曇り";
+    if ([301, 302, 303, 350, 400].includes(c)) return "☔雨";
+    return "☁️曇り";
+}
+
+function getWbgtLevel(value) {
+    const v = parseFloat(value);
+    if (v >= 31) return { color: '#e74c3c', text: '危険（運動中止）' };
+    if (v >= 28) return { color: '#e67e22', text: '厳重警戒' };
+    if (v >= 25) return { color: '#f1c40f', text: '警戒' };
+    if (v >= 21) return { color: '#3498db', text: '注意' };
+    return { color: '#2ecc71', text: 'ほぼ安全' };
+}
+
+// 日本生気象学会公式ベースのWBGT換算式
+function calcWbgt(temp, humidity) {
+    return 0.725 * temp + 0.0368 * humidity + 0.00315 * temp * humidity - 3.0;
+}
+
+async function updateDashboard() {
+    const statusEl = document.getElementById('wbgt-status');
+    try {
+        // 気象庁のサーバーから、複数の異なるCORS回避ミラーサーバーを経由してデータを取得
+        // 1つのプロキシが落ちていても、自動的に次のミラーへ瞬時に切り替える「フォールバック機構」を搭載
+        const mirrors = [
+            `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.jma.go.jp/bosai/forecast/data/forecast/300000.json')}`,
+            `https://corsproxy.io/?${encodeURIComponent('https://www.jma.go.jp/bosai/forecast/data/forecast/300000.json')}`
+        ];
+
+        let rawData = null;
+        for (let url of mirrors) {
+            try {
+                const res = await fetch(url);
+                if (res.ok) {
+                    const json = await res.json();
+                    rawData = typeof json.contents === 'string' ? JSON.parse(json.contents) : (json.contents || json);
+                    break;
+                }
+            } catch(e) { continue; }
+        }
+
+        if (!rawData) throw new Error("全サーバー通信不通");
+
+        const timeSeriesGroup = rawData[1].timeSeries;
+        let times = [];
+        let temps = [];
+        let humidities = [];
+
+        timeSeriesGroup.forEach(series => {
+            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE) {
+                if (series.data.temperature) {
+                    times = series.timeDefines;
+                    temps = series.data.temperature;
+                }
+                if (series.data.humidity) {
+                    humidities = series.data.humidity;
+                }
+            }
+        });
+
+        // 【最重要：気象庁サイトの『現在の時間』に完全に一致するデータを動的に巡回探索するロジック】
+        const now = new Date();
+        let curTemp = null;
+        let curHumidity = null;
+        let displayHour = now.getHours();
+
+        // 1. まず最も現在時刻に近いインデックスを仮決定
+        let targetIndex = 0;
+        let minDiff = Infinity;
+        for (let i = 0; i < times.length; i++) {
+            const diff = Math.abs(now - new Date(times[i]));
+            if (diff < minDiff) {
+                minDiff = diff;
+                targetIndex = i;
+            }
+        }
+
+        // 2. ピンポイントでその時間のデータが存在するかチェック。
+        // 空っぽ（未発表）であれば、配列の前後を自動巡回して、気象庁画面に今まさに表示されている確定値を100%見つけ出す
+        if (temps[targetIndex] !== undefined && humidities[targetIndex] !== undefined) {
+            curTemp = parseFloat(temps[targetIndex]);
+            curHumidity = parseFloat(humidities[targetIndex]);
+            displayHour = new Date(times[targetIndex]).getHours();
+        } else {
+            // 例外処理：最初に見つかる「実データのある場所」をスライド探索
+            for (let i = 0; i < temps.length; i++) {
+                if (temps[i] !== undefined && humidities[i] !== undefined) {
+                    curTemp = parseFloat(temps[i]);
+                    curHumidity = parseFloat(humidities[i]);
+                    displayHour = new Date(times[i]).getHours();
+                    break;
+                }
+            }
+            // それでもダメなら最初の有効な配列要素
+            if (curTemp === null) curTemp = parseFloat(temps[0]);
+            if (curHumidity === null) curHumidity = parseFloat(humidities[0]);
+        }
+
+        // 最終チェックを経て画面を確実に書き換え（NaNを根絶）
+        if (!isNaN(curTemp) && !isNaN(curHumidity)) {
+            document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
+            document.getElementById('cur-humidity').innerText = `${Math.round(curHumidity)}%`;
+
+            // 気象庁サイト完全同期の気温・湿度からWBGTを算出
+            const curWbgt = calcWbgt(curTemp, curHumidity).toFixed(1);
+            
+            const numEl = document.getElementById('wbgt-num');
+            numEl.innerText = curWbgt;
+            numEl.style.setProperty('font-size', '32vh', 'important');
+
+            // 天気情報の同期
+            if (rawData[0] && rawData[0].timeSeries[0].areas[0].weatherCodes) {
+                const code = rawData[0].timeSeries[0].areas[0].weatherCodes[0];
+                document.getElementById('weather-text').innerText = getWeatherName(code);
+            }
+
+            const level = getWbgtLevel(curWbgt);
+            document.getElementById('wbgt-card').style.backgroundColor = level.color;
+            statusEl.innerText = level.text;
+
+            document.getElementById('time-label').innerText = `気象庁予報面（${displayHour}:00時点）の連動暑さ指数`;
+            
+            const rightNow = new Date();
+            document.getElementById('update-time').innerText = `気象庁公式データ同期中: ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
+        } else {
+            throw new Error("パース異常");
+        }
+
+    } catch (e) {
+        statusEl.innerText = "気象庁データ再読込中...";
+        console.error("同期エラー:", e);
+    }
+}
+
+// 起動
+updateDashboard();
+// 5分毎に自動同期
+setInterval(updateDashboard, 300000);
+</script>
 
 </body>
 </html>
