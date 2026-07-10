@@ -27,12 +27,11 @@ jobs:
           # 2. 環境省から本物のWBGTを取得（環境省和歌山コード: 62081）
           curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/current_zone.csv?_=$(date +%s)" -o wbgt_raw.csv
           
-          # 【修正】超横長CSVのカンマを改行に変換し、不要な空白や\rを消去。
-          # 「62081」という単語を完全一致で探し、その【2行下】にある本物のWBGT値をピンポイント抽出。
-          REAL_WBGT=$(tr ',' '\n' < wbgt_raw.csv | tr -d '[:space:]' | grep -A 2 "^62081$" | tail -n 1)
+          # 【修正】ダブルクォーテーションや空白を完全に排除した上で、
+          # 62081の行（和歌山）から正確に【3行下】の実況値を抽出します。
+          REAL_WBGT=$(tr ',' '\n' < wbgt_raw.csv | tr -d '"' | tr -d '[:space:]' | grep -A 3 "^62081$" | tail -n 1)
 
-          # 万が一、上記で取得した値が数字でなかった場合（サーバーエラー時など）のバックアップ
-          # バックアップ計算値も、小数点第1位（例: 27.4）に確実に丸めます
+          # 万が一、環境省データが空だった場合のみアメダスから簡易逆算（バックアップも小数点第1位に固定）
           if [[ ! "$REAL_WBGT" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
             echo "MOE data pull failed. Running formatted fallback calculation..."
             REAL_WBGT=$(echo "scale=1; (0.725 * $REAL_TEMP + 0.0368 * $REAL_HUM + 0.00315 * $REAL_TEMP * $REAL_HUM - 3.0) / 1" | bc)
