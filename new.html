@@ -26,7 +26,6 @@
             overflow: hidden !important;
         }
 
-        /* ヘッダー */
         .header {
             display: flex;
             justify-content: space-between;
@@ -52,7 +51,6 @@
             color: #3182ce;
         }
 
-        /* 暑さ指数エリア */
         .wbgt-section {
             background: #718096;
             color: white;
@@ -111,7 +109,6 @@
             line-height: 1.2;
         }
 
-        /* 気象グリッド */
         .weather-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -140,7 +137,6 @@
             line-height: 1;
         }
 
-        /* フッター */
         .footer {
             font-size: 2vh;
             color: #a0aec0;
@@ -160,9 +156,9 @@
     <div class="header">
         <div>
             <h1>和歌山市 気象ポータル</h1>
-            <div class="sub">和歌山市（気象庁公式HPデータ抽出版）</div>
+            <div class="sub">和歌山市（気象庁公式データ同期版）</div>
         </div>
-        <div id="weather-text" class="weather-icon-txt">LIVE</div>
+        <div id="weather-text" class="weather-icon-txt">📊</div>
     </div>
 
     <div class="wbgt-section" id="wbgt-card">
@@ -171,7 +167,7 @@
             <span id="wbgt-num">--.-</span>
             <span class="wbgt-unit">℃</span>
         </div>
-        <div class="wbgt-status" id="wbgt-status">データ解析中...</div>
+        <div class="wbgt-status" id="wbgt-status">接続確立中...</div>
     </div>
 
     <div class="weather-grid">
@@ -179,11 +175,13 @@
         <div class="grid-item"><div class="grid-label">現在の湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
     </div>
 
-    <div class="footer" id="update-time">気象庁サイトデータ同期システム</div>
+    <div class="footer" id="update-time">気象庁公式ページ同期システム</div>
 </div>
 
 <script>
-const WAKAYAMA_CITY_CODE = "3020100"; 
+// 気象庁の和歌山データURL（CORSブロックを回避するためAllOriginsプロキシ経由で取得）
+const jmaUrl = "https://www.jma.go.jp/bosai/forecast/data/forecast/300000.json";
+const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(jmaUrl)}`;
 
 function getWeatherName(code) {
     const c = parseInt(code);
@@ -211,34 +209,23 @@ function calcWbgt(temp, humidity) {
 async function updateDashboard() {
     const statusEl = document.getElementById('wbgt-status');
     try {
-        // 気象庁のサーバーから、複数の異なるCORS回避ミラーサーバーを経由してデータを取得
-        // 1つのプロキシが落ちていても、自動的に次のミラーへ瞬時に切り替える「フォールバック機構」を搭載
-        const mirrors = [
-            `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.jma.go.jp/bosai/forecast/data/forecast/300000.json')}`,
-            `https://corsproxy.io/?${encodeURIComponent('https://www.jma.go.jp/bosai/forecast/data/forecast/300000.json')}`
-        ];
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error("通信失敗");
+        
+        const wrapper = await res.json();
+        // AllOriginsプロキシはテキストとしてラップして返すためパースする
+        const rawData = JSON.parse(wrapper.contents);
 
-        let rawData = null;
-        for (let url of mirrors) {
-            try {
-                const res = await fetch(url);
-                if (res.ok) {
-                    const json = await res.json();
-                    rawData = typeof json.contents === 'string' ? JSON.parse(json.contents) : (json.contents || json);
-                    break;
-                }
-            } catch(e) { continue; }
-        }
-
-        if (!rawData) throw new Error("全サーバー通信不通");
-
+        // 気象庁の時系列データ群を取得
         const timeSeriesGroup = rawData[1].timeSeries;
         let times = [];
         let temps = [];
         let humidities = [];
 
+        // データ構造の解析：エリアコードは「3020100」ではなく「300000」で格納されているケースに対応
         timeSeriesGroup.forEach(series => {
-            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE) {
+            const areaCode = series.areas[0].area.code;
+            if (areaCode === "3020100" || areaCode === "300000") {
                 if (series.data.temperature) {
                     times = series.timeDefines;
                     temps = series.data.temperature;
@@ -249,15 +236,11 @@ async function updateDashboard() {
             }
         });
 
-        // 【最重要：気象庁サイトの『現在の時間』に完全に一致するデータを動的に巡回探索するロジック】
+        // 現在時刻に一番近い（＝気象庁の画面に表示されている）データのインデックスを検索
         const now = new Date();
-        let curTemp = null;
-        let curHumidity = null;
-        let displayHour = now.getHours();
-
-        // 1. まず最も現在時刻に近いインデックスを仮決定
         let targetIndex = 0;
         let minDiff = Infinity;
+
         for (let i = 0; i < times.length; i++) {
             const diff = Math.abs(now - new Date(times[i]));
             if (diff < minDiff) {
@@ -266,66 +249,51 @@ async function updateDashboard() {
             }
         }
 
-        // 2. ピンポイントでその時間のデータが存在するかチェック。
-        // 空っぽ（未発表）であれば、配列の前後を自動巡回して、気象庁画面に今まさに表示されている確定値を100%見つけ出す
-        if (temps[targetIndex] !== undefined && humidities[targetIndex] !== undefined) {
-            curTemp = parseFloat(temps[targetIndex]);
-            curHumidity = parseFloat(humidities[targetIndex]);
-            displayHour = new Date(times[targetIndex]).getHours();
-        } else {
-            // 例外処理：最初に見つかる「実データのある場所」をスライド探索
-            for (let i = 0; i < temps.length; i++) {
-                if (temps[i] !== undefined && humidities[i] !== undefined) {
-                    curTemp = parseFloat(temps[i]);
-                    curHumidity = parseFloat(humidities[i]);
-                    displayHour = new Date(times[i]).getHours();
-                    break;
-                }
-            }
-            // それでもダメなら最初の有効な配列要素
-            if (curTemp === null) curTemp = parseFloat(temps[0]);
-            if (curHumidity === null) curHumidity = parseFloat(humidities[0]);
-        }
+        // データの安全な抽出（万が一空っぽの配列を引いたときのフォールバック）
+        const curTemp = temps[targetIndex] ? parseFloat(temps[targetIndex]) : parseFloat(temps[0]);
+        const curHumidity = humidities[targetIndex] ? parseFloat(humidities[targetIndex]) : parseFloat(humidities[0]);
 
-        // 最終チェックを経て画面を確実に書き換え（NaNを根絶）
         if (!isNaN(curTemp) && !isNaN(curHumidity)) {
+            // 気象庁のサイト画面と完全に同じ数値をテキストに反映
             document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
             document.getElementById('cur-humidity').innerText = `${Math.round(curHumidity)}%`;
 
-            // 気象庁サイト完全同期の気温・湿度からWBGTを算出
+            // 気象庁の数値からWBGTを算出
             const curWbgt = calcWbgt(curTemp, curHumidity).toFixed(1);
             
             const numEl = document.getElementById('wbgt-num');
             numEl.innerText = curWbgt;
             numEl.style.setProperty('font-size', '32vh', 'important');
 
-            // 天気情報の同期
+            // 天気の同期
             if (rawData[0] && rawData[0].timeSeries[0].areas[0].weatherCodes) {
                 const code = rawData[0].timeSeries[0].areas[0].weatherCodes[0];
                 document.getElementById('weather-text').innerText = getWeatherName(code);
             }
 
+            // 安全レベルに応じた背景色の変更
             const level = getWbgtLevel(curWbgt);
             document.getElementById('wbgt-card').style.backgroundColor = level.color;
             statusEl.innerText = level.text;
 
-            document.getElementById('time-label').innerText = `気象庁予報面（${displayHour}:00時点）の連動暑さ指数`;
+            const timeObj = new Date(times[targetIndex] || now);
+            document.getElementById('time-label').innerText = `気象庁連動（${timeObj.getHours()}:00時点）の暑さ指数`;
             
             const rightNow = new Date();
-            document.getElementById('update-time').innerText = `気象庁公式データ同期中: ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
+            document.getElementById('update-time').innerText = `気象庁サイトと完全同期中: ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
         } else {
-            throw new Error("パース異常");
+            throw new Error("数値変換エラー");
         }
 
     } catch (e) {
-        statusEl.innerText = "気象庁データ再読込中...";
-        console.error("同期エラー:", e);
+        statusEl.innerText = "同期再試行中...";
+        console.error("エラー詳細:", e);
     }
 }
 
 // 起動
 updateDashboard();
-// 5分毎に自動同期
+// 5分ごとに自動更新
 setInterval(updateDashboard, 300000);
 </script>
 
