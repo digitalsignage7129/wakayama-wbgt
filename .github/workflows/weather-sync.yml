@@ -27,14 +27,15 @@ jobs:
           # 2. 環境省から本物のWBGTを取得（環境省和歌山コード: 62081）
           curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/current_zone.csv?_=$(date +%s)" -o wbgt_raw.csv
           
-          # 【最終修正】改行コード（\r）を完全に削除してからカンマを改行に変換。
-          # 62081という数字のみの行を確実に捕まえ、3行下のWBGT値を抽出。
-          REAL_WBGT=$(tr -d '\r' < wbgt_raw.csv | tr ',' '\n' | awk '/^62081$/{line=NR} line && NR==line+3{print; exit}' | tr -d '[:space:]')
+          # 【修正】超横長CSVのカンマを改行に変換し、不要な空白や\rを消去。
+          # 「62081」という単語を完全一致で探し、その【2行下】にある本物のWBGT値をピンポイント抽出。
+          REAL_WBGT=$(tr ',' '\n' < wbgt_raw.csv | tr -d '[:space:]' | grep -A 2 "^62081$" | tail -n 1)
 
-          # 完全に数字だけで構成されているかチェック（アメダス計算値への逃げ道を完全に塞ぐ）
+          # 万が一、上記で取得した値が数字でなかった場合（サーバーエラー時など）のバックアップ
+          # バックアップ計算値も、小数点第1位（例: 27.4）に確実に丸めます
           if [[ ! "$REAL_WBGT" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "Format error or empty. Forcing calculation fallback."
-            REAL_WBGT=$(echo "scale=1; 0.725 * $REAL_TEMP + 0.0368 * $REAL_HUM + 0.00315 * $REAL_TEMP * $REAL_HUM - 3.0" | bc)
+            echo "MOE data pull failed. Running formatted fallback calculation..."
+            REAL_WBGT=$(echo "scale=1; (0.725 * $REAL_TEMP + 0.0368 * $REAL_HUM + 0.00315 * $REAL_TEMP * $REAL_HUM - 3.0) / 1" | bc)
           fi
 
           # 3. 1つのJSONに合体して保存
