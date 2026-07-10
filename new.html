@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>和歌山市 WBGT・気象ダッシュボード</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #ffffff;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden !important;
+        }
+        
+        .widget-box {
+            width: 100vw;
+            height: 100vh;
+            box-sizing: border-box;
+            padding: 1.5vh 3vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden !important;
+        }
+
+        /* ヘッダー */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 5px solid #edf2f7;
+            height: 10vh;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 4.5vh;
+            color: #2d3748;
+            font-weight: 900;
+            line-height: 1.1;
+        }
+        .header .sub {
+            font-size: 2vh;
+            color: #718096;
+            font-weight: bold;
+        }
+        .weather-icon-txt {
+            font-size: 5.5vh;
+            font-weight: 900;
+            color: #3182ce;
+        }
+
+        /* 暑さ指数エリア */
+        .wbgt-section {
+            background: #2ecc71;
+            color: white;
+            border-radius: 24px;
+            text-align: center;
+            height: 60vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 2vh 0;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .wbgt-label {
+            font-size: 3.5vh;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin: 0;
+            line-height: 1;
+        }
+        
+        /* 数字の表示エリア */
+        .wbgt-display-area {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 42vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 太さと文字間隔の調整 */
+        #wbgt-num {
+            font-weight: 900 !important;
+            line-height: 0.9 !important;
+            letter-spacing: -6px !important;
+        }
+        /* 単位の「℃」のサイズも微調整 */
+        .wbgt-unit {
+            font-size: 9vh !important;
+            font-weight: 900 !important;
+            margin-left: 10px;
+            align-self: flex-end;
+            margin-bottom: 5vh;
+        }
+        
+        .wbgt-status {
+            font-size: 5vh;
+            font-weight: 900;
+            background: rgba(0,0,0,0.25);
+            padding: 0.4vh 8vw;
+            border-radius: 50px;
+            display: inline-block;
+            align-self: center;
+            letter-spacing: 2px;
+            margin: 0;
+            line-height: 1.2;
+        }
+
+        /* 気象グリッド */
+        .weather-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* 降水確率を廃止し3列に変更 */
+            gap: 2vw;
+            height: 18vh;
+        }
+        .grid-item {
+            background: #f7fafc;
+            border: 4px solid #e2e8f0;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+        }
+        .grid-label {
+            font-size: 2.5vh;
+            color: #4a5568;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .grid-value {
+            font-size: 4.5vh;
+            font-weight: 900;
+            color: #1a202c;
+            line-height: 1;
+        }
+
+        /* フッター */
+        .footer {
+            font-size: 2vh;
+            color: #a0aec0;
+            text-align: center;
+            border-top: 3px solid #edf2f7;
+            height: 4vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="widget-box">
+    <div class="header">
+        <div>
+            <h1>和歌山市 気象ポータル</h1>
+            <div class="sub">和歌山（環境省WBGT / 気象庁アメダス実測）</div>
+        </div>
+        <div id="weather-text" class="weather-icon-txt">情報</div>
+    </div>
+
+    <div class="wbgt-section" id="wbgt-card">
+        <div class="wbgt-label" id="time-label">環境省 暑さ指数 (WBGT)</div>
+        <div class="wbgt-display-area">
+            <span id="wbgt-num">--.-</span>
+            <span class="wbgt-unit">℃</span>
+        </div>
+        <div class="wbgt-status" id="wbgt-status">取得中...</div>
+    </div>
+
+    <div class="weather-grid">
+        <div class="grid-item"><div class="grid-label">アメダス気温</div><div class="grid-value" id="cur-temp">--.-℃</div></div>
+        <div class="grid-item"><div class="grid-label">湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
+        <div class="grid-item"><div class="grid-label">風速</div><div class="grid-value" id="cur-wind">--.-m/s</div></div>
+    </div>
+
+    <div class="footer" id="update-time">環境省・気象庁データ 同期中</div>
+</div>
+
+<script>
+// 和歌山地点の定義
+const ENV_WAKAYAMA_ID = "65036"; // 環境省 暑さ指数「和歌山」の地点ID
+const JMA_WAKAYAMA_ID = "65036"; // 気象庁 アメダス「和歌山」の地点ID
+
+// CORSエラー回避用プロキシ
+const PROXY_URL = "https://api.allorigins.win/get?url=";
+
+function getWbgtLevel(value) {
+    const v = parseFloat(value);
+    if (isNaN(v)) return { color: '#718096', text: '--' };
+    if (v >= 31) return { color: '#e74c3c', text: '危険（運動中止）' };
+    if (v >= 28) return { color: '#e67e22', text: '厳重警戒' };
+    if (v >= 25) return { color: '#f1c40f', text: '警戒' };
+    if (v >= 21) return { color: '#3498db', text: '注意' };
+    return { color: '#2ecc71', text: 'ほぼ安全' };
+}
+
+// 1. 環境省のWBGTデータを取得・反映
+async function fetchEnvWbgt() {
+    const statusEl = document.getElementById('wbgt-status');
+    try {
+        // 環境省の全地点予測値CSV（固定名）をプロキシ経由で読込
+        const targetUrl = "https://www.wbgt.env.go.jp/est15WG/dl/yohou_all.csv";
+        const res = await fetch(PROXY_URL + encodeURIComponent(targetUrl));
+        if (!res.ok) throw new Error();
+        const json = await res.json();
+        const csvText = json.contents;
+
+        // CSVの解析
+        const lines = csvText.split('\n');
+        if (lines.length < 4) return;
+
+        // 3行目から時間軸（ヘッダー）を取得
+        const timeHeader = lines[2].split(',');
+        
+        // 4行目以降から和歌山(65036)の行を探す
+        let targetLine = null;
+        for (let i = 3; i < lines.length; i++) {
+            const cols = lines[i].split(',');
+            if (cols[0] === ENV_WAKAYAMA_ID) {
+                targetLine = cols;
+                break;
+            }
+        }
+
+        if (targetLine) {
+            // 現在時刻に一番近いデータを探す
+            const now = new Date();
+            let minDiff = Infinity;
+            let targetValue = "--.-";
+            let targetTimeStr = "";
+
+            // CSVデータ列（3列目以降）をループ
+            for (let j = 2; j < timeHeader.length; j++) {
+                const rawTime = timeHeader[j].trim(); // YYYYMMDDHH 形式
+                if (rawTime.length === 10) {
+                    const year = rawTime.substring(0, 4);
+                    const month = rawTime.substring(4, 6);
+                    const day = rawTime.substring(6, 8);
+                    const hour = rawTime.substring(8, 10);
+                    const dataDate = new Date(`${year}-${month}-${day}T${hour}:00:00+09:00`);
+                    
+                    const diff = Math.abs(now - dataDate);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        targetValue = parseFloat(targetLine[j]).toFixed(1);
+                        targetTimeStr = `${parseInt(hour)}:00`;
+                    }
+                }
+            }
+
+            // 画面に数値を反映
+            const numEl = document.getElementById('wbgt-num');
+            numEl.innerText = targetValue;
+            numEl.style.setProperty('font-size', '32vh', 'important');
+
+            const level = getWbgtLevel(targetValue);
+            document.getElementById('wbgt-card').style.backgroundColor = level.color;
+            statusEl.innerText = level.text;
+            document.getElementById('time-label').innerText = `環境省 WBGT（${targetTimeStr}予測値）`;
+        }
+    } catch (e) {
+        statusEl.innerText = "環境省データ読込失敗";
+        console.error(e);
+    }
+}
+
+// 2. 気象庁の最新アメダス実測データを取得・反映
+async function fetchJmaAmedas() {
+    try {
+        // 気象庁の最新データ時刻（latest_time.txt）を取得してURLを生成
+        const timeUrl = "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt";
+        const timeRes = await fetch(PROXY_URL + encodeURIComponent(timeUrl));
+        if (!timeRes.ok) throw new Error();
+        const timeJson = await timeRes.json();
+        
+        // 取得した時刻文字列を整形 (例: 2026-07-10T12:50:00+09:00 -> 20260710125000)
+        const dateObj = new Date(timeJson.contents.trim());
+        const Y = dateObj.getFullYear();
+        const M = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const D = String(dateObj.getDate()).padStart(2, '0');
+        const h = String(dateObj.getHours()).padStart(2, '0');
+        const m = String(dateObj.getMinutes()).padStart(2, '0');
+        const timeStr = `${Y}${M}${D}${h}${m}00`;
+
+        // 全アメダス地点の該当時刻のデータを取得
+        const dataUrl = `https://www.jma.go.jp/bosai/amedas/data/map/${timeStr}.json`;
+        const dataRes = await fetch(PROXY_URL + encodeURIComponent(dataUrl));
+        if (!dataRes.ok) throw new Error();
+        const dataJson = await dataRes.json();
+        const amedasData = JSON.parse(dataJson.contents);
+
+        // 和歌山地点のデータを抽出
+        const wData = amedasData[JMA_WAKAYAMA_ID];
+        if (wData) {
+            // 気温
+            if (wData.temp) document.getElementById('cur-temp').innerText = `${wData.temp[0].toFixed(1)}℃`;
+            // 湿度
+            if (wData.humidity) document.getElementById('cur-humidity').innerText = `${wData.humidity[0]}%`;
+            // 風速
+            if (wData.wind) document.getElementById('cur-wind').innerText = `${wData.wind[0].toFixed(1)}m/s`;
+
+            // フッターの同期時刻を更新
+            document.getElementById('update-time').innerText = `気象庁アメダス同期: ${Y}/${parseInt(M)}/${parseInt(D)} ${h}:${m}`;
+        }
+    } catch (e) {
+        document.getElementById('update-time').innerText = "気象庁データ同期失敗";
+        console.error(e);
+    }
+}
+
+// ダッシュボードの一括更新
+function updateDashboard() {
+    fetchEnvWbgt();
+    fetchJmaAmedas();
+}
+
+// 初回実行と10分ごとの定期自動更新
+updateDashboard();
+setInterval(updateDashboard, 600000);
+</script>
+
+</body>
+</html>
