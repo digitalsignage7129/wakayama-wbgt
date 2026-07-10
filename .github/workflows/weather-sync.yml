@@ -1,10 +1,9 @@
-name: JMA Data Hyper Sync
+name: JMA Amedas Realtime Sync
 
 on:
   schedule:
-    # ★5分ごとに1回、強制的に自動実行（GitHub Actionsの最速限界値）
-    - cron: '*/5 * * * *'
-  workflow_dispatch: # 手動実行ボタンも残す
+    - cron: '*/5 * * * *' # 5分ごとに実行
+  workflow_dispatch:
 
 jobs:
   sync:
@@ -13,17 +12,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download JMA Weather Data
+      - name: Fetch Latest Amedas Data
         run: |
-          # 気象庁のキャッシュに引っかからないよう、URLの後ろに毎回ランダムな数字(秒数)を付与して強制最新取得
-          curl -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-               "https://www.jma.go.jp/bosai/forecast/data/forecast/300000.json?_=$(date +%s)" \
-               -o jma_weather.json
+          # 1. 気象庁が公開している「最新のアメダスデータ時間」を取得 (例: 20260710145000)
+          curl -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt" -o latest_time.txt
+          LATEST_TIME=$(cat latest_time.txt)
+          
+          # 2. その最新時間の全国アメダスデータJSONをピンポイントでダウンロード
+          curl -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/map/${LATEST_TIME}.json" -o amedas_now.json
 
       - name: Commit and Push if changed
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add jma_weather.json
-          # 5分前のデータと1文字でも違いがあれば、即座にリポジトリを更新（Push）
-          git diff --cached --quiet || (git commit -m "Hyper Update JMA data" && git push)
+          git add amedas_now.json
+          git diff --cached --quiet || (git commit -m "Sync Amedas Realtime Data" && git push)
