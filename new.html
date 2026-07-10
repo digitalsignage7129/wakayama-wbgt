@@ -184,13 +184,10 @@
 </div>
 
 <script>
-// 気象庁の和歌山地方の地域コード
 const JMA_AREA_CODE = "300000"; // 和歌山県
 const WAKAYAMA_CITY_CODE = "3020100"; // 和歌山市
 
-// 気象庁の天気を文字に変換
 function getWeatherName(code) {
-    // 簡易的な代表コード変換（主要なもの）
     const c = parseInt(code);
     if ([100, 101, 123, 130].includes(c)) return "☀️晴れ";
     if ([102, 104, 200, 201, 210, 270].includes(c)) return "⛅曇晴";
@@ -208,7 +205,7 @@ function getWbgtLevel(value) {
     return { color: '#2ecc71', text: 'ほぼ安全' };
 }
 
-// 簡易WBGT計算（日射は平均的な晴れ〜曇りを想定した補正係数込み）
+// 簡易WBGT計算
 function calcWbgt(temp, humidity) {
     return 0.725 * temp + 0.0368 * humidity + 0.00315 * temp * humidity - 3.0;
 }
@@ -216,7 +213,6 @@ function calcWbgt(temp, humidity) {
 async function updateDashboard() {
     const statusEl = document.getElementById('wbgt-status');
     try {
-        // 気象庁公式の予報API（和歌山県）※CORSエラーを回避するためパブリックプロキシを経由
         const targetUrl = `https://www.jma.go.jp/bosai/forecast/data/forecast/${JMA_AREA_CODE}.json`;
         const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
         
@@ -224,37 +220,29 @@ async function updateDashboard() {
         if (!res.ok) throw new Error();
         const data = await res.json();
         
-        // 時系列予報（3時間ごと）のデータを抽出
-        // data[1] に時系列の細かいデータが入っています
         const timeSeriesGroup = data[1].timeSeries;
         
         let times = [];
         let temps = [];
         let humidities = [];
         let winds = [];
-        let weatherCodes = [];
 
         timeSeriesGroup.forEach(series => {
-            // 気温データ
-            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE && series.data.temperature) {
-                times = series.timeDefines;
-                temps = series.data.temperature;
-            }
-            // 湿度データ
-            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE && series.data.humidity) {
-                humidities = series.data.humidity;
-            }
-            // 風速データ
-            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE && series.data.wind) {
-                winds = series.data.wind;
-            }
-            // 天気コード
-            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE && series.data.weather) {
-                weatherCodes = series.data.weather;
+            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE) {
+                if (series.data.temperature) {
+                    times = series.timeDefines;
+                    temps = series.data.temperature;
+                }
+                if (series.data.humidity) {
+                    humidities = series.data.humidity;
+                }
+                if (series.data.wind) {
+                    winds = series.data.wind;
+                }
             }
         });
 
-        // 現在時刻に一番近い予報インデックスを探す
+        // 現在時刻に一番近い予報のインデックスを見つける
         const now = new Date();
         let targetIndex = 0;
         let minDiff = Infinity;
@@ -267,26 +255,48 @@ async function updateDashboard() {
             }
         }
 
-        // 該当時間のデータを抽出
-        const curTemp = parseFloat(temps[targetIndex]);
-        const curHumidity = humidities[targetIndex] ? parseFloat(humidities[targetIndex]) : 60; // 湿度データがない場合のフォールバック
-        const curWind = winds[targetIndex] ? parseFloat(winds[targetIndex]) : 2.0;
+        // 気温の取得（これがNaNの原因にならないようチェック）
+        const curTemp = temps[targetIndex] ? parseFloat(temps[targetIndex]) : 25.0;
+        
+        // 湿度データの安全な抽出（データ数が足りない場合は夏の平均値65%をフォールバック）
+        let curHumidity = 65;
+        if (humidities && humidities.length > 0) {
+            if (humidities[targetIndex] !== undefined) {
+                curHumidity = parseFloat(humidities[targetIndex]);
+            } else {
+                curHumidity = parseFloat(humidities[humidities.length - 1]); // 存在する最後のデータを流用
+            }
+        }
+        if (isNaN(curHumidity)) curHumidity = 65;
+
+        // 風速データの安全な抽出
+        let curWind = 2.0;
+        if (winds && winds.length > 0) {
+            if (winds[targetIndex] !== undefined) {
+                curWind = parseFloat(winds[targetIndex]);
+            } else {
+                curWind = parseFloat(winds[winds.length - 1]);
+            }
+        }
+        if (isNaN(curWind)) curWind = 2.0;
+
+        // WBGT計算
         const curWbgt = calcWbgt(curTemp, curHumidity).toFixed(1);
         
-        const timeObj = new Date(times[targetIndex]);
+        const timeObj = new Date(times[targetIndex] || now);
         const targetHour = timeObj.getHours();
 
-        // 画面への反映
+        // 画面に値を表示
         document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
-        document.getElementById('cur-humidity').innerText = `${curHumidity}%`;
+        document.getElementById('cur-humidity').innerText = `${Math.round(curHumidity)}%`;
         document.getElementById('cur-wind').innerText = `${curWind.toFixed(1)}m/s`;
         
         const numEl = document.getElementById('wbgt-num');
         numEl.innerText = curWbgt;
         numEl.style.setProperty('font-size', '32vh', 'important');
 
-        // 天気アイコン（文字）
-        if (data[0].timeSeries[0].areas[0].weatherCodes) {
+        // 天気情報の取得
+        if (data[0] && data[0].timeSeries[0].areas[0].weatherCodes) {
             const code = data[0].timeSeries[0].areas[0].weatherCodes[0];
             document.getElementById('weather-text').innerText = getWeatherName(code);
         }
@@ -301,14 +311,12 @@ async function updateDashboard() {
         document.getElementById('update-time').innerText = `気象庁公式予報と同期完了: ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
 
     } catch (e) {
-        statusEl.innerText = "気象庁データ読込中...";
-        console.error("気象庁データ同期エラー:", e);
+        statusEl.innerText = "データ処理エラー";
+        console.error("データ処理に失敗しました:", e);
     }
 }
 
-// 起動
 updateDashboard();
-// 10分毎に予報を自動更新
 setInterval(updateDashboard, 600000);
 </script>
 
