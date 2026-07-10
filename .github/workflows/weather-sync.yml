@@ -2,8 +2,8 @@ name: JMA & MOE Total Realtime Sync
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
-  workflow_dispatch:
+    - cron: '*/5 * * * *' # 5分ごとに自動実行
+  workflow_dispatch: # 手動実行用ボタンを有効化
 
 jobs:
   sync:
@@ -14,7 +14,7 @@ jobs:
 
       - name: Fetch Data and Combine
         run: |
-          # 1. 気象庁から現在の「気温・湿度」を取得
+          # 1. 気象庁から現在の「気温・湿度」を取得（和歌山アメダス: 65042）
           curl -s -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt" -o latest_time.txt
           RAW_TIME=$(cat latest_time.txt)
           LATEST_TIME=$(echo "${RAW_TIME}" | sed 's/[-:+T]//g' | cut -c 1-14)
@@ -24,13 +24,13 @@ jobs:
           REAL_TEMP=$(jq -r '."65042".temp[0] // "29.9"' amedas_now.json)
           REAL_HUM=$(jq -r '."65042".humidity[0] // "67"' amedas_now.json)
 
-          # 2. 環境省から本物のWBGTを取得
+          # 2. 環境省から本物のWBGTを取得（環境省和歌山コード: 62081）
           curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/current_zone.csv?_=$(date +%s)" -o wbgt_raw.csv
           
-          # 【確実版】和歌山(65042)の行から、カンマ区切りの4番目のフィールド（WBGT値）を確実に抽出
-          REAL_WBGT=$(awk -F',' '$1=="65042" {print $4}' wbgt_raw.csv | tr -d '[:space:]')
+          # 環境省の和歌山地点コード「62081」の行から4番目の列（WBGT値）を抽出
+          REAL_WBGT=$(awk -F',' '$0 ~ /^62081/ {print $4}' wbgt_raw.csv | tr -d '[:space:]')
 
-          # 万が一環境省が空だった場合のみ、気象庁アメダスから簡易計算（小数点第1位に丸め）
+          # 万が一、環境省データが空だった場合のみアメダスから簡易逆算（小数点第1位に丸め）
           if [ -z "$REAL_WBGT" ]; then
             REAL_WBGT=$(echo "scale=1; 0.725 * $REAL_TEMP + 0.0368 * $REAL_HUM + 0.00315 * $REAL_TEMP * $REAL_HUM - 3.0" | bc)
           fi
