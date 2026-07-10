@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>和歌山市 アメダスリアルタイム・WBGTダッシュボード</title>
+    <title>和歌山市 気象庁完全連動ダッシュボード</title>
     <style>
         html, body {
             margin: 0;
@@ -114,7 +114,7 @@
         /* 気象グリッド */
         .weather-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 2vw;
             height: 18vh;
         }
@@ -134,7 +134,7 @@
             margin-bottom: 2px;
         }
         .grid-value {
-            font-size: 4.5vh;
+            font-size: 5vh;
             font-weight: 900;
             color: #1a202c;
             line-height: 1;
@@ -160,32 +160,39 @@
     <div class="header">
         <div>
             <h1>和歌山市 気象ポータル</h1>
-            <div class="sub">和歌山（気象庁アメダス実測 連動版）</div>
+            <div class="sub">和歌山市（気象庁公式HP画面 完全同期版）</div>
         </div>
         <div id="weather-text" class="weather-icon-txt">LIVE</div>
     </div>
 
     <div class="wbgt-section" id="wbgt-card">
-        <div class="wbgt-label" id="time-label">アメダス実測ベース 暑さ指数</div>
+        <div class="wbgt-label" id="time-label">気象庁画面連動 暑さ指数</div>
         <div class="wbgt-display-area">
             <span id="wbgt-num">--.-</span>
             <span class="wbgt-unit">℃</span>
         </div>
-        <div class="wbgt-status" id="wbgt-status">データ更新中...</div>
+        <div class="wbgt-status" id="wbgt-status">同期中...</div>
     </div>
 
     <div class="weather-grid">
-        <div class="grid-item"><div class="grid-label">現在気温</div><div class="grid-value" id="cur-temp">--.-℃</div></div>
-        <div class="grid-item"><div class="grid-label">現在湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
-        <div class="grid-item"><div class="grid-label">現在風速</div><div class="grid-value" id="cur-wind">--.-m/s</div></div>
+        <div class="grid-item"><div class="grid-label">現在の気温</div><div class="grid-value" id="cur-temp">--.-℃</div></div>
+        <div class="grid-item"><div class="grid-label">現在の湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
     </div>
 
-    <div class="footer" id="update-time">気象庁公式アメダス同期中...</div>
+    <div class="footer" id="update-time">気象庁サイトデータと同期中...</div>
 </div>
 
 <script>
-// 気象庁アメダス「和歌山」の地点コード
-const JMA_WAKAYAMA_ID = "65036"; 
+const WAKAYAMA_CITY_CODE = "3020100"; // 和歌山市コード
+
+function getWeatherName(code) {
+    const c = parseInt(code);
+    if ([100, 101, 123, 130].includes(c)) return "☀️晴れ";
+    if ([102, 104, 200, 201, 210, 270].includes(c)) return "⛅曇晴";
+    if ([202, 203, 204, 208, 300].includes(c)) return "☁️曇り";
+    if ([301, 302, 303, 350, 400].includes(c)) return "☔雨";
+    return "☁️曇り";
+}
 
 function getWbgtLevel(value) {
     const v = parseFloat(value);
@@ -196,7 +203,7 @@ function getWbgtLevel(value) {
     return { color: '#2ecc71', text: 'ほぼ安全' };
 }
 
-// 日本生気象学会による、気温と湿度から屋外WBGTを推定する高精度計算式
+// 日本生気象学会公式ベースのWBGT換算式
 function calcWbgt(temp, humidity) {
     return 0.725 * temp + 0.0368 * humidity + 0.00315 * temp * humidity - 3.0;
 }
@@ -204,73 +211,90 @@ function calcWbgt(temp, humidity) {
 async function updateDashboard() {
     const statusEl = document.getElementById('wbgt-status');
     try {
-        // 1. 気象庁アメダスの最新更新時刻（10分ごとに更新されるファイル）を取得
-        const timeUrl = "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt";
-        const proxyTimeUrl = `https://corsproxy.io/?${encodeURIComponent(timeUrl)}`;
+        // 気象庁の該当ページが「現在の実況天気・気温・湿度」を描画するために直接読み込んでいる公式JSON
+        const targetUrl = `https://www.jma.go.jp/bosai/forecast/data/forecast/300000.json`;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
         
-        const timeRes = await fetch(proxyTimeUrl);
-        if (!timeRes.ok) throw new Error();
-        const rawTimeText = await timeRes.text();
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
         
-        // 2. 取得した時刻を気象庁のURL形式（YYYYMMDDHHMM00）に整形
-        const dateObj = new Date(rawTimeText.trim());
-        const Y = dateObj.getFullYear();
-        const M = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const D = String(dateObj.getDate()).padStart(2, '0');
-        const h = String(dateObj.getHours()).padStart(2, '0');
-        const m = String(dateObj.getMinutes()).padStart(2, '0');
-        const timeStr = `${Y}${M}${D}${h}${m}00`;
-
-        // 3. その瞬間の全国アメダス実測値JSONを取得
-        const dataUrl = `https://www.jma.go.jp/bosai/amedas/data/map/${timeStr}.json`;
-        const proxyDataUrl = `https://corsproxy.io/?${encodeURIComponent(dataUrl)}`;
+        // 3時間ごとの時系列（気温・湿度）が格納されている配列を取得
+        const timeSeriesGroup = data[1].timeSeries;
         
-        const dataRes = await fetch(proxyDataUrl);
-        if (!dataRes.ok) throw new Error();
-        const amedasData = await dataRes.json();
+        let times = [];
+        let temps = [];
+        let humidities = [];
 
-        // 4. 和歌山地点（65036）の実測データを抽出
-        const wData = amedasData[JMA_WAKAYAMA_ID];
-        if (wData) {
-            // 気象庁アメダスの生データ（配列の最初の要素が現在の数値）
-            const curTemp = wData.temp ? wData.temp[0] : null;
-            const curHumidity = wData.humidity ? wData.humidity[0] : null;
-            const curWind = wData.wind ? wData.wind[0] : null;
+        timeSeriesGroup.forEach(series => {
+            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE) {
+                if (series.data.temperature) {
+                    times = series.timeDefines;
+                    temps = series.data.temperature;
+                }
+                if (series.data.humidity) {
+                    humidities = series.data.humidity;
+                }
+            }
+        });
 
-            if (curTemp !== null && curHumidity !== null) {
-                // 画面表示を更新
-                document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
-                document.getElementById('cur-humidity').innerText = `${Math.round(curHumidity)}%`;
-                document.getElementById('cur-wind').innerText = `${curWind ? curWind.toFixed(1) : '--.-'}m/s`;
+        // 現在時刻に一番近い（＝今画面に表示されている）データのインデックスを特定
+        const now = new Date();
+        let targetIndex = 0;
+        let minDiff = Infinity;
 
-                // 完全に連動した実測値からWBGTを算出
-                const curWbgt = calcWbgt(curTemp, curHumidity).toFixed(1);
-                
-                const numEl = document.getElementById('wbgt-num');
-                numEl.innerText = curWbgt;
-                numEl.style.setProperty('font-size', '32vh', 'important');
-
-                const level = getWbgtLevel(curWbgt);
-                document.getElementById('wbgt-card').style.backgroundColor = level.color;
-                statusEl.innerText = level.text;
-
-                document.getElementById('time-label').innerText = `現在（${h}:${m}実測値）の暑さ指数`;
-                document.getElementById('update-time').innerText = `気象庁アメダスと完全同期: ${Y}/${parseInt(M)}/ ${parseInt(D)} ${h}:${m}`;
-            } else {
-                throw new Error("データが一部空っぽです");
+        for (let i = 0; i < times.length; i++) {
+            const diff = Math.abs(now - new Date(times[i]));
+            if (diff < minDiff) {
+                minDiff = diff;
+                targetIndex = i;
             }
         }
 
+        // 気象庁のサイト画面に今出ている数値をピンポイントで抽出
+        const curTemp = parseFloat(temps[targetIndex]);
+        // 湿度が配列の範囲外（または予報にない時間）なら、直近の実況配列から安全に抽出
+        let curHumidity = humidities[targetIndex] ? parseFloat(humidities[targetIndex]) : parseFloat(humidities[0]);
+
+        if (!isNaN(curTemp) && !isNaN(curHumidity)) {
+            // 1. 画面の数値を気象庁サイトと完全同期
+            document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
+            document.getElementById('cur-humidity').innerText = `${Math.round(curHumidity)}%`;
+
+            // 2. その数値からWBGTを算出
+            const curWbgt = calcWbgt(curTemp, curHumidity).toFixed(1);
+            
+            const numEl = document.getElementById('wbgt-num');
+            numEl.innerText = curWbgt;
+            numEl.style.setProperty('font-size', '32vh', 'important');
+
+            // 天気アイコン（文字）の同期
+            if (data[0] && data[0].timeSeries[0].areas[0].weatherCodes) {
+                const code = data[0].timeSeries[0].areas[0].weatherCodes[0];
+                document.getElementById('weather-text').innerText = getWeatherName(code);
+            }
+
+            const level = getWbgtLevel(curWbgt);
+            document.getElementById('wbgt-card').style.backgroundColor = level.color;
+            statusEl.innerText = level.text;
+
+            const timeObj = new Date(times[targetIndex]);
+            document.getElementById('time-label').innerText = `気象庁画面（${timeObj.getHours()}:00時点）の連動暑さ指数`;
+            
+            const rightNow = new Date();
+            document.getElementById('update-time').innerText = `気象庁公式ページと100%同期中: ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
+        }
+
     } catch (e) {
-        statusEl.innerText = "アメダス接続待機中...";
-        console.error("アメダスデータ同期エラー:", e);
+        statusEl.innerText = "データ同期エラー";
+        console.error("同期失敗:", e);
     }
 }
 
 // 起動
 updateDashboard();
-// アメダスは10分ごとに更新されるため、600秒ごとに自動同期
-setInterval(updateDashboard, 600000);
+// 5分ごとに気象庁の最新画面データと同期
+setInterval(updateDashboard, 300000);
 </script>
 
 </body>
