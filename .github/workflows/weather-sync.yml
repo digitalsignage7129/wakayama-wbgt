@@ -1,0 +1,29 @@
+name: JMA Data Hyper Sync
+
+on:
+  schedule:
+    # ★5分ごとに1回、強制的に自動実行（GitHub Actionsの最速限界値）
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # 手動実行ボタンも残す
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download JMA Weather Data
+        run: |
+          # 気象庁のキャッシュに引っかからないよう、URLの後ろに毎回ランダムな数字(秒数)を付与して強制最新取得
+          curl -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+               "https://www.jma.go.jp/bosai/forecast/data/forecast/300000.json?_=$(date +%s)" \
+               -o jma_weather.json
+
+      - name: Commit and Push if changed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add jma_weather.json
+          # 5分前のデータと1文字でも違いがあれば、即座にリポジトリを更新（Push）
+          git diff --cached --quiet || (git commit -m "Hyper Update JMA data" && git push)
