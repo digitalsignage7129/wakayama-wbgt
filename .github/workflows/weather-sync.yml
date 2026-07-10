@@ -24,29 +24,16 @@ jobs:
           REAL_TEMP=$(jq -r '."65042".temp[0] // "29.9"' amedas_now.json)
           REAL_HUM=$(jq -r '."65042".humidity[0] // "67"' amedas_now.json)
 
-          # 2. 環境省から本物のWBGTを取得（環境省和歌山コード: 62081）
-          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/current_zone.csv?_=$(date +%s)" -o wbgt_raw.csv
+          # 2. 環境省から和歌山（65042）ピンポイントの実況CSVを取得
+          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/graph/current/65042.csv" -o wbgt_spot.csv
           
-          # 【最終解決】Bashの切り出しではなく、Pythonの標準CSVライブラリをその場で動かします。
-          # これにより、空欄（,,）が何個あろうが、カンマ区切りの「正確な4番目の要素」を絶対にズレずに抽出します。
-          REAL_WBGT=$(python3 -c "
-          import csv
-          with open('wbgt_raw.csv', mode='r', encoding='utf-8', errors='ignore') as f:
-              reader = csv.reader(f)
-              for row in reader:
-                  # 行の中に和歌山コード(62081)が含まれているか探す
-                  if '62081' in row:
-                      idx = row.index('62081')
-                      # 62081の入っている位置から3つ隣（4番目の要素）が確実な実況値
-                      if idx + 3 < len(row):
-                          print(row[idx + 3].strip())
-                          break
-          " || echo "")
+          # CSVの最終行（最新の時間帯）の、3番目の列にある本物のWBGT値を抽出
+          # 不要なキャリッジリターン（\r）や空白を完全に排除
+          REAL_WBGT=$(tail -n 1 wbgt_spot.csv | tr -d '\r' | awk -F',' '{print $3}' | tr -d '[:space:]')
 
-          # 数字（整数または小数）であるか厳密にチェック。
-          # 条件を満たさない（空文字やエラー文字）場合のみ、最終手段としてアメダスから「計算値（小数点第1位に丸め）」を作ります。
+          # 取得した値が正常な数字（整数・小数）か厳密にチェック
           if [[ ! "$REAL_WBGT" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "MOE CSV parse mismatched. Calculating from Amedas..."
+            echo "Direct MOE spot pull failed. Running formatted fallback calculation..."
             REAL_WBGT=$(echo "scale=1; (0.725 * $REAL_TEMP + 0.0368 * $REAL_HUM + 0.00315 * $REAL_TEMP * $REAL_HUM - 3.0) / 1" | bc)
           fi
 
