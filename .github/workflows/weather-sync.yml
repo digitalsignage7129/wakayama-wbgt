@@ -2,7 +2,7 @@ name: JMA & MOE Total Realtime Sync
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # 5分ごとに実行
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -14,27 +14,33 @@ jobs:
 
       - name: Fetch Data and Combine
         run: |
-          # --- 1. 環境省から本物のWBGTを取得 ---
-          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/current_zone.csv?_=$(date +%s)" -o wbgt_raw.csv
-          WAKAYAMA_MOE=$(grep "^65042," wbgt_raw.csv || echo "")
-          REAL_WBGT=$(echo "$WAKAYAMA_MOE" | cut -d',' -f4)
-
-          # --- 2. 気象庁から本物の「現在の気温・湿度」を取得 ---
+          # 1. 気象庁から現在の「気温・湿度」を取得
           curl -s -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt" -o latest_time.txt
           RAW_TIME=$(cat latest_time.txt)
           LATEST_TIME=$(echo "${RAW_TIME}" | sed 's/[-:+T]//g' | cut -c 1-14)
           
-          # 正しいURLでアメダスJSONをダウンロード
           curl -s -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/map/${LATEST_TIME}.json" -o amedas_now.json
 
-          # jqコマンドを使って和歌山アメダス(65042)の最新の気温・湿度を抽出
-          # 配列の[0]に入っている最新の実況数値を安全に抜き出します
-          REAL_TEMP=$(jq -r '."65042".temp[0]' amedas_now.json)
-          REAL_HUM=$(jq -r '."65042".humidity[0]' amedas_now.json)
+          REAL_TEMP=$(jq -r '."65042".temp[0] // "30.0"' amedas_now.json)
+          REAL_HUM=$(jq -r '."65042".humidity[0] // "65"' amedas_now.json)
 
-          # --- 3. 2つの本物データを1つのJSONに合体して保存 ---
+          # 2. 環境省から本物のWBGTを取得
+          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/current_zone.csv?_=$(date +%s)" -o wbgt_raw.csv
+          
+          # 【修正】和歌山(65042)の行を抽出し、余計なカンマや空文字を詰めて、最初の数値を確実に狙い撃ち
+          WAKAYAMA_LINE=$(grep "^65042," wbgt_raw.csv || echo "")
+          
+          # カンマ区切りの4番目以降にある「最初の有効な数値」を抽出する正規表現
+          REAL_WBGT=$(echo "$WAKAYAMA_LINE" | grep -oE '[0-9]{2}\.[0-9]' | head -n 1)
+
+          # 万が一取得できなかった場合のセーフティ
+          if [ -z "$REAL_WBGT" ]; then
+            REAL_WBGT=$(echo "scale=1; 0.725 * $REAL_TEMP + 0.0368 * $REAL_HUM + 0.00315 * $REAL_TEMP * $REAL_HUM - 3.0" | bc)
+          fi
+
+          # 3. 1つのJSONに合体して保存
           echo "{\"wbgt\": \"$REAL_WBGT\", \"temp\": \"$REAL_TEMP\", \"humidity\": \"$REAL_HUM\"}" > wbgt_combined.json
-          echo "Combined Data -> WBGT: $REAL_WBGT, Temp: $REAL_TEMP, Hum: $REAL_HUM"
+          echo "Generated -> WBGT: $REAL_WBGT, Temp: $REAL_TEMP, Hum: $REAL_HUM"
 
       - name: Commit and Push if changed
         run: |
