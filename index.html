@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>和歌山市 気象庁（3020100）Actions完全同期</title>
+    <title>和歌山市 アメダスリアルタイム同期（CORS完全突破版）</title>
     <style>
         html, body {
             margin: 0; padding: 0; width: 100vw; height: 100vh;
@@ -38,17 +38,17 @@
     <div class="header">
         <div>
             <h1>和歌山市 気象ポータル</h1>
-            <div class="sub">和歌山市（気象庁コード：3020100 Actions同期版）</div>
+            <div class="sub">和歌山アメダス（観測所コード：65042 現況直結版）</div>
         </div>
     </div>
 
     <div class="wbgt-section" id="wbgt-card">
-        <div class="wbgt-label" id="time-label">気象庁データ連動 暑さ指数</div>
+        <div class="wbgt-label" id="time-label">アメダス実況連動 暑さ指数</div>
         <div class="wbgt-display-area">
             <span id="wbgt-num">--.-</span>
             <span class="wbgt-unit">℃</span>
         </div>
-        <div class="wbgt-status" id="wbgt-status">データ読み込み中</div>
+        <div class="wbgt-status" id="wbgt-status">データ反映待ち...</div>
     </div>
 
     <div class="weather-grid">
@@ -56,13 +56,12 @@
         <div class="grid-item"><div class="grid-label">現在の湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
     </div>
 
-    <div class="footer" id="update-time">GitHub Actions 自動クローリングシステム</div>
+    <div class="footer" id="update-time">GitHub Actions アメダス実況同期システム</div>
 </div>
 
 <script>
-// Actionsが保存した同じリポジトリ内のJSONファイルを指定（CORSエラー絶対起きない）
-const LOCAL_JSON_URL = "./jma_weather.json";
-const WAKAYAMA_CODE = "3020100";
+const AMEDAS_JSON_URL = "./amedas_now.json";
+const WAKAYAMA_AMEDAS_CODE = "65042"; // 和歌山アメダス観測所の固有コード
 
 function getWbgtLevel(value) {
     const v = parseFloat(value);
@@ -73,6 +72,7 @@ function getWbgtLevel(value) {
     return { color: '#2ecc71', text: 'ほぼ安全' };
 }
 
+// 気温と湿度からWBGT（暑さ指数）を推定する標準簡易公式
 function calcWbgt(temp, humidity) {
     return 0.725 * temp + 0.0368 * humidity + 0.00315 * temp * humidity - 3.0;
 }
@@ -80,50 +80,25 @@ function calcWbgt(temp, humidity) {
 async function updateDashboard() {
     const statusEl = document.getElementById('wbgt-status');
     try {
-        // キャッシュを回避するためにタイムスタンプを付与してリポジトリ内のJSONを読み込む
-        const response = await fetch(`${LOCAL_JSON_URL}?_=${Date.now()}`);
-        if (!response.ok) throw new Error("JSONファイルの読み込みに失敗しました");
-        const rawData = await response.json();
+        // Actionsが5分ごとに更新してくれているJSONを取得
+        const response = await fetch(`${AMEDAS_JSON_URL}?_=${Date.now()}`);
+        if (!response.ok) throw new Error();
+        const amedasData = await response.json();
 
-        const timeSeriesGroup = rawData[1].timeSeries;
-        let times = [], temps = [], humidities = [];
+        // 和歌山(65042)の今のピンポイント実況データを抽出
+        const targetData = amedasData[WAKAYAMA_AMEDAS_CODE];
+        if (!targetData) throw new Error("和歌山アメダスのデータが見つかりません");
 
-        timeSeriesGroup.forEach(series => {
-            const areaData = series.areas.find(a => a.area.code === WAKAYAMA_CODE);
-            if (areaData) {
-                if (series.data.temperature) {
-                    times = series.timeDefines;
-                    temps = series.data.temperature;
-                }
-                if (series.data.humidity) {
-                    humidities = series.data.humidity;
-                }
-            }
-        });
+        // 気象庁アメダスの生数値（気温は配列[0]、湿度は配列[0]に格納されています）
+        const curTemp = targetData.temp ? parseFloat(targetData.temp[0]) : null;
+        const curHumidity = targetData.humidity ? parseFloat(targetData.humidity[0]) : null;
 
-        if (times.length === 0 || temps.length === 0) throw new Error("和歌山市のデータが見つかりません");
-
-        // 現在時刻に一番近い気象庁のインデックスを抽出
-        const now = new Date();
-        let targetIndex = 0;
-        let minDiff = Infinity;
-
-        for (let i = 0; i < times.length; i++) {
-            const diff = Math.abs(now - new Date(times[i]));
-            if (diff < minDiff) {
-                minDiff = diff;
-                targetIndex = i;
-            }
-        }
-
-        // お送りいただいた気象庁公式URLと「完全に100%一致する本物の数値」
-        const curTemp = parseFloat(temps[targetIndex]);
-        const curHumidity = humidities[targetIndex] !== undefined ? parseFloat(humidities[targetIndex]) : parseFloat(humidities[0]);
-
-        if (!isNaN(curTemp) && !isNaN(curHumidity)) {
+        if (curTemp !== null && curHumidity !== null) {
+            // 画面の「現在の気温」「現在の湿度」をお送りいただいたURLの数値と完全同期
             document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
             document.getElementById('cur-humidity').innerText = `${Math.round(curHumidity)}%`;
 
+            // 本物の実況値からリアルタイムに現在のWBGTを算出
             const curWbgt = calcWbgt(curTemp, curHumidity).toFixed(1);
             document.getElementById('wbgt-num').innerText = curWbgt;
 
@@ -131,22 +106,24 @@ async function updateDashboard() {
             document.getElementById('wbgt-card').style.backgroundColor = level.color;
             statusEl.innerText = level.text;
 
-            const targetTime = new Date(times[targetIndex]);
-            document.getElementById('time-label').innerText = `気象庁公式発表（${targetTime.getHours()}:00時点）`;
-            document.getElementById('update-time').innerText = `リポジトリ同期完了: ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+            const now = new Date();
+            document.getElementById('time-label').innerText = `和歌山アメダス現況実況値`;
+            document.getElementById('update-time').innerText = `アメダス同期完了: ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+        } else {
+            throw new Error("データが空です");
         }
 
     } catch (e) {
         statusEl.innerText = "データ反映待ち...";
         document.getElementById('wbgt-card').style.backgroundColor = "#718096";
-        console.error(e);
+        console.error("アメダス解析エラー:", e);
     }
 }
 
-// 初回起動
+// 起動
 updateDashboard();
-// 10分ごとにローカルファイルをチェック（STBの負荷になりません）
-setInterval(updateDashboard, 600000);
+// 3分ごとにSTB側でファイル更新をチェック
+setInterval(updateDashboard, 180000);
 </script>
 
 </body>
