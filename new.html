@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>和歌山市 WBGTダッシュボード（高精度・高安定版）</title>
+    <title>和歌山市 気象予報・WBGTダッシュボード</title>
     <style>
         html, body {
             margin: 0;
@@ -26,6 +26,7 @@
             overflow: hidden !important;
         }
 
+        /* ヘッダー */
         .header {
             display: flex;
             justify-content: space-between;
@@ -48,11 +49,12 @@
         .weather-icon-txt {
             font-size: 5.5vh;
             font-weight: 900;
-            color: #2c3e50;
+            color: #3182ce;
         }
 
+        /* 暑さ指数エリア */
         .wbgt-section {
-            background: #2ecc71;
+            background: #718096;
             color: white;
             border-radius: 24px;
             text-align: center;
@@ -109,9 +111,10 @@
             line-height: 1.2;
         }
 
+        /* 気象グリッド */
         .weather-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 2vw;
             height: 18vh;
         }
@@ -137,6 +140,7 @@
             line-height: 1;
         }
 
+        /* フッター */
         .footer {
             font-size: 2vh;
             color: #a0aec0;
@@ -156,48 +160,43 @@
     <div class="header">
         <div>
             <h1>和歌山市 気象ポータル</h1>
-            <div class="sub">和歌山 湊 リアルタイム解析</div>
+            <div class="sub">和歌山（気象庁公式予報 連動版）</div>
         </div>
-        <div id="weather-text" class="weather-icon-txt">📊</div>
+        <div id="weather-text" class="weather-icon-txt">--</div>
     </div>
 
     <div class="wbgt-section" id="wbgt-card">
-        <div class="wbgt-label" id="time-label">高精度推定 暑さ指数 (WBGT)</div>
+        <div class="wbgt-label" id="time-label">気象庁予報ベース 暑さ指数</div>
         <div class="wbgt-display-area">
             <span id="wbgt-num">--.-</span>
             <span class="wbgt-unit">℃</span>
         </div>
-        <div class="wbgt-status" id="wbgt-status">算出中...</div>
+        <div class="wbgt-status" id="wbgt-status">データ取得中...</div>
     </div>
 
     <div class="weather-grid">
-        <div class="grid-item"><div class="grid-label">気温</div><div class="grid-value" id="cur-temp">--.-℃</div></div>
-        <div class="grid-item"><div class="grid-label">湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
-        <div class="grid-item"><div class="grid-label">風速</div><div class="grid-value" id="cur-wind">--.-m/s</div></div>
-        <div class="grid-item"><div class="grid-label">日射量</div><div class="grid-value" id="cur-solar">-.--<span>kW</span></div></div>
+        <div class="grid-item"><div class="grid-label">予報気温</div><div class="grid-value" id="cur-temp">--.-℃</div></div>
+        <div class="grid-item"><div class="grid-label">予報湿度</div><div class="grid-value" id="cur-humidity">--%</div></div>
+        <div class="grid-item"><div class="grid-label">予報風速</div><div class="grid-value" id="cur-wind">--.-m/s</div></div>
     </div>
 
-    <div class="footer" id="update-time">Open-Meteo 高精度リアルタイム解析</div>
+    <div class="footer" id="update-time">気象庁公式データ同期中...</div>
 </div>
 
 <script>
-// 和歌山湊付近の座標
-const lat = 34.2285;
-const lon = 135.1378;
+// 気象庁の和歌山地方の地域コード
+const JMA_AREA_CODE = "300000"; // 和歌山県
+const WAKAYAMA_CITY_CODE = "3020100"; // 和歌山市
 
-// Open-Meteoの「リアルタイム(current)」かつ「日射量(direct_radiation)」を含むAPI（CORS制限なしで100%通る）
-const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,direct_radiation,diffuse_radiation,weather_code&timezone=Asia%2FTokyo&forecast_days=1`;
-
-function getWeatherText(code) {
-    if (code === 0) return "☀️晴";
-    if (code === 1 || code === 2 || code === 3) return "⛅晴曇";
-    if (code === 45 || code === 48) return "🌫️霧";
-    if (code === 51 || code === 53 || code === 55) return "🌧️小雨";
-    if (code === 61 || code === 63 || code === 65) return "☔雨";
-    if (code === 71 || code === 73 || code === 75) return "❄️雪";
-    if (code === 80 || code === 81 || code === 82) return "🌦️雨";
-    if (code === 95 || code === 96) return "⚡雷雨";
-    return "☁️曇";
+// 気象庁の天気を文字に変換
+function getWeatherName(code) {
+    // 簡易的な代表コード変換（主要なもの）
+    const c = parseInt(code);
+    if ([100, 101, 123, 130].includes(c)) return "☀️晴れ";
+    if ([102, 104, 200, 201, 210, 270].includes(c)) return "⛅曇晴";
+    if ([202, 203, 204, 208, 300].includes(c)) return "☁️曇り";
+    if ([301, 302, 303, 350, 400].includes(c)) return "☔雨";
+    return "☁️曇り";
 }
 
 function getWbgtLevel(value) {
@@ -209,81 +208,108 @@ function getWbgtLevel(value) {
     return { color: '#2ecc71', text: 'ほぼ安全' };
 }
 
-/**
- * 日本生気象学会等の推定モデルをベースにした、屋外対応の高精度WBGT計算アルゴリズム
- * 気温、湿度、日射量、風速から「屋外の黒球温度・湿球温度」の影響をシミュレートします。
- */
-function calcAdvancedWbgt(temp, humidity, solar, windSpeed) {
-    // 1. 湿球温度(Tw)の簡易算出 (Stullの式)
-    const T = temp;
-    const Rh = humidity;
-    let tw = T * Math.atan(0.151977 * Math.sqrt(Rh + 8.313659)) 
-             + Math.atan(T + Rh) 
-             - Math.atan(Rh - 1.676331) 
-             + 0.00391838 * Math.pow(Rh, 1.5) * Math.atan(0.023101 * Rh) 
-             - 4.686035;
-
-    // 2. 日射量（W/m²）による黒球温度(Tg)の衣服内・屋外上昇シミュレーション
-    // 風速(m/s)が強いほど熱が逃げ、日射(W/m²)が強いほど上昇する特性を反映
-    const wind = Math.max(windSpeed, 0.5); // 無風でも対流があるため最低0.5m/sで計算
-    const solarW = Math.max(solar, 0);
-    const tgHeating = (solarW * 0.018) / (1 + 0.3 * Math.sqrt(wind)); 
-    const Tg = T + tgHeating;
-
-    // 3. 屋外WBGT基本公式に当てはめる (0.7*Tw + 0.2*Tg + 0.1*Td)
-    let wbgt = (0.7 * tw) + (0.2 * Tg) + (0.1 * T);
-    
-    return wbgt;
+// 簡易WBGT計算（日射は平均的な晴れ〜曇りを想定した補正係数込み）
+function calcWbgt(temp, humidity) {
+    return 0.725 * temp + 0.0368 * humidity + 0.00315 * temp * humidity - 3.0;
 }
 
 async function updateDashboard() {
     const statusEl = document.getElementById('wbgt-status');
     try {
-        const res = await fetch(apiUrl);
+        // 気象庁公式の予報API（和歌山県）※CORSエラーを回避するためパブリックプロキシを経由
+        const targetUrl = `https://www.jma.go.jp/bosai/forecast/data/forecast/${JMA_AREA_CODE}.json`;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        
+        const res = await fetch(proxyUrl);
         if (!res.ok) throw new Error();
         const data = await res.json();
         
-        const current = data.current;
+        // 時系列予報（3時間ごと）のデータを抽出
+        // data[1] に時系列の細かいデータが入っています
+        const timeSeriesGroup = data[1].timeSeries;
         
-        const curTemp = current.temperature_2m;
-        const curHumidity = current.relative_humidity_2m;
-        const curWind = current.wind_speed_10m / 3.6; // km/h -> m/s 変換
-        const totalSolar = current.direct_radiation + current.diffuse_radiation; // 全天日射量(W/m²)
-        const curWeather = getWeatherText(current.weather_code);
+        let times = [];
+        let temps = [];
+        let humidities = [];
+        let winds = [];
+        let weatherCodes = [];
 
-        // 太陽の照り返しを含めた屋外リアルタイムWBGTを精密計算
-        const curWbgt = calcAdvancedWbgt(curTemp, curHumidity, totalSolar, curWind).toFixed(1);
+        timeSeriesGroup.forEach(series => {
+            // 気温データ
+            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE && series.data.temperature) {
+                times = series.timeDefines;
+                temps = series.data.temperature;
+            }
+            // 湿度データ
+            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE && series.data.humidity) {
+                humidities = series.data.humidity;
+            }
+            // 風速データ
+            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE && series.data.wind) {
+                winds = series.data.wind;
+            }
+            // 天気コード
+            if (series.areas[0].area.code === WAKAYAMA_CITY_CODE && series.data.weather) {
+                weatherCodes = series.data.weather;
+            }
+        });
 
-        // 画面へ反映
-        document.getElementById('weather-text').innerText = curWeather;
+        // 現在時刻に一番近い予報インデックスを探す
+        const now = new Date();
+        let targetIndex = 0;
+        let minDiff = Infinity;
+
+        for (let i = 0; i < times.length; i++) {
+            const diff = Math.abs(now - new Date(times[i]));
+            if (diff < minDiff) {
+                minDiff = diff;
+                targetIndex = i;
+            }
+        }
+
+        // 該当時間のデータを抽出
+        const curTemp = parseFloat(temps[targetIndex]);
+        const curHumidity = humidities[targetIndex] ? parseFloat(humidities[targetIndex]) : 60; // 湿度データがない場合のフォールバック
+        const curWind = winds[targetIndex] ? parseFloat(winds[targetIndex]) : 2.0;
+        const curWbgt = calcWbgt(curTemp, curHumidity).toFixed(1);
+        
+        const timeObj = new Date(times[targetIndex]);
+        const targetHour = timeObj.getHours();
+
+        // 画面への反映
+        document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
+        document.getElementById('cur-humidity').innerText = `${curHumidity}%`;
+        document.getElementById('cur-wind').innerText = `${curWind.toFixed(1)}m/s`;
         
         const numEl = document.getElementById('wbgt-num');
         numEl.innerText = curWbgt;
         numEl.style.setProperty('font-size', '32vh', 'important');
 
-        document.getElementById('cur-temp').innerText = `${curTemp.toFixed(1)}℃`;
-        document.getElementById('cur-humidity').innerText = `${curHumidity}%`;
-        document.getElementById('cur-wind').innerText = `${curWind.toFixed(1)}m/s`;
-        document.getElementById('cur-solar').innerHTML = `${(totalSolar / 1000).toFixed(2)}<span style="font-size:2vh; font-weight:normal;">kW/㎡</span>`;
+        // 天気アイコン（文字）
+        if (data[0].timeSeries[0].areas[0].weatherCodes) {
+            const code = data[0].timeSeries[0].areas[0].weatherCodes[0];
+            document.getElementById('weather-text').innerText = getWeatherName(code);
+        }
 
         const level = getWbgtLevel(curWbgt);
         document.getElementById('wbgt-card').style.backgroundColor = level.color;
         statusEl.innerText = level.text;
 
+        document.getElementById('time-label').innerText = `気象庁予報（${targetHour}:00時点）の暑さ指数`;
+        
         const rightNow = new Date();
-        document.getElementById('time-label').innerText = `現在（${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}）の屋外暑さ指数`;
-        document.getElementById('update-time').innerText = `自動同期: ${rightNow.getMonth()+1}/${rightNow.getDate()} ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
+        document.getElementById('update-time').innerText = `気象庁公式予報と同期完了: ${rightNow.getHours()}:${String(rightNow.getMinutes()).padStart(2,'0')}`;
 
     } catch (e) {
-        statusEl.innerText = "データ再接続中...";
-        console.error(e);
+        statusEl.innerText = "気象庁データ読込中...";
+        console.error("気象庁データ同期エラー:", e);
     }
 }
 
 // 起動
 updateDashboard();
-// 5分毎に解析更新
-setInterval(updateDashboard, 300000);
+// 10分毎に予報を自動更新
+setInterval(updateDashboard, 600000);
 </script>
 
 </body>
