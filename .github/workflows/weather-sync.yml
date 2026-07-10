@@ -1,8 +1,8 @@
-name: JMA Amedas Realtime Sync
+name: JMA & MOE Total Realtime Sync
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/5 * * * *' # 5分ごとに実行
   workflow_dispatch:
 
 jobs:
@@ -12,27 +12,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Fetch Latest Amedas Data
+      - name: Fetch Data and Combine
         run: |
-          # 1. 気象庁の最新データ更新時刻を取得（例: 2026-07-10T15:00:00+09:00）
-          curl -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-               "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt" -o latest_time.txt
-          
+          # --- 1. 環境省から本物のWBGTを取得 ---
+          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/current_zone.csv?_=$(date +%s)" -o wbgt_raw.csv
+          WAKAYAMA_MOE=$(grep "^65042," wbgt_raw.csv || echo "")
+          REAL_WBGT=$(echo "$WAKAYAMA_MOE" | cut -d',' -f4)
+
+          # --- 2. 気象庁から本物の「現在の気温・湿度」を取得 ---
+          curl -s -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt" -o latest_time.txt
           RAW_TIME=$(cat latest_time.txt)
-          echo "Raw time from JMA: ${RAW_TIME}"
-          
-          # 2. 記号を取り除いて YYYYMMDDHHMMSS 形式に変換（例: 20260710150000）
-          # ハイフン、コロン、プラス記号、Tを削り、先頭の14桁（秒まで）を切り出す
           LATEST_TIME=$(echo "${RAW_TIME}" | sed 's/[-:+T]//g' | cut -c 1-14)
-          echo "Formatted time for URL: ${LATEST_TIME}"
           
-          # 3. 正しいURLでダウンロードを実行（404なら処理を落とす -f フラグ付き）
-          curl -f -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-               "https://www.jma.go.jp/bosai/amedas/data/map/${LATEST_TIME}.json" -o amedas_now.json
+          # 正しいURLでアメダスJSONをダウンロード
+          curl -s -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/map/${LATEST_TIME}.json" -o amedas_now.json
+
+          # jqコマンドを使って和歌山アメダス(65042)の最新の気温・湿度を抽出
+          # 配列の[0]に入っている最新の実況数値を安全に抜き出します
+          REAL_TEMP=$(jq -r '."65042".temp[0]' amedas_now.json)
+          REAL_HUM=$(jq -r '."65042".humidity[0]' amedas_now.json)
+
+          # --- 3. 2つの本物データを1つのJSONに合体して保存 ---
+          echo "{\"wbgt\": \"$REAL_WBGT\", \"temp\": \"$REAL_TEMP\", \"humidity\": \"$REAL_HUM\"}" > wbgt_combined.json
+          echo "Combined Data -> WBGT: $REAL_WBGT, Temp: $REAL_TEMP, Hum: $REAL_HUM"
 
       - name: Commit and Push if changed
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add amedas_now.json
-          git diff --cached --quiet || (git commit -m "Sync Amedas Realtime Data" && git push)
+          git add wbgt_combined.json
+          git diff --cached --quiet || (git commit -m "Sync Combined Realtime Data" && git push)
