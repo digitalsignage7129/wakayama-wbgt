@@ -24,17 +24,17 @@ jobs:
           REAL_TEMP=$(jq -r '."65042".temp[0] // "29.9"' amedas_now.json)
           REAL_HUM=$(jq -r '."65042".humidity[0] // "67"' amedas_now.json)
 
-          # 2. 環境省から和歌山（65042）の個別CSVを取得
-          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/graph/current/65042.csv" -o wbgt_spot.csv
+          # 2. 【完全修正】環境省のスマホ版ウェブ画面（あなたが提示したURL）を直接ダウンロード
+          curl -s -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+            "https://www.wbgt.env.go.jp/sp/graph_ref_td.php?region=07&prefecture=65&point=65042" -o moe_page.html
           
-          # 【修正】末尾の行をただ取るのではなく、CSV全体から「1（実況値）」とマークされている行のうち、
-          # 最も新しい時間（一番下にあるもの）のWBGT値を確実に抜き出します。
-          # ※環境省のCSV構造：[日時, 区分(1=実況/2=予測), WBGT値, ...] となっているため、2列目が「1」の行を狙います。
-          REAL_WBGT=$(awk -F',' '$2=="1" {print $3}' wbgt_spot.csv | tail -n 1 | tr -d '\r[:space:]')
+          # HTMLのソースコード内にある、現在のWBGT実況値が埋め込まれているパーツを抜き出します。
+          # 画面上の「現在の暑さ指数」の数値部分を正規表現でダイレクトに抽出
+          REAL_WBGT=$(grep -oE '[0-9]{1,2}\.[0-9]{1}' moe_page.html | head -n 1)
 
-          # 万が一、上記で値が取れなかった場合のみバックアップの計算を発動
+          # 万が一取得できなかった場合、または現在の画面の数値が空欄だった場合の安全策
           if [[ ! "$REAL_WBGT" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "Direct MOE spot pull failed. Running formatted fallback calculation..."
+            echo "HTML parse failed or empty. Running formatted fallback calculation..."
             REAL_WBGT=$(echo "scale=1; (0.725 * $REAL_TEMP + 0.0368 * $REAL_HUM + 0.00315 * $REAL_TEMP * $REAL_HUM - 3.0) / 1" | bc)
           fi
 
