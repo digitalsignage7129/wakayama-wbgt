@@ -1,8 +1,8 @@
-name: JMA & MOE Total Realtime Sync
+name: MOE Official CSV Realtime Sync
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/10 * * * *'  # 10分ごとに自動で最新CSVをチェック
   workflow_dispatch:
 
 jobs:
@@ -12,33 +12,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4.2.2
 
-      - name: Fetch Data and Combine
+      - name: Fetch and Process MOE Official CSV
         run: |
           # 1. 気象庁から現在の「気温・湿度」を取得（和歌山アメダス: 65042）
           curl -s -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt" -o latest_time.txt
           RAW_TIME=$(cat latest_time.txt)
           LATEST_TIME=$(echo "${RAW_TIME}" | sed 's/[-:+T]//g' | cut -c 1-14)
-          
           curl -s -H "User-Agent: Mozilla/5.0" "https://www.jma.go.jp/bosai/amedas/data/map/${LATEST_TIME}.json" -o amedas_now.json
 
-          REAL_TEMP=$(jq -r '."65042".temp[0] // "29.9"' amedas_now.json)
-          REAL_HUM=$(jq -r '."65042".humidity[0] // "67"' amedas_now.json)
+          REAL_TEMP=$(jq -r '."65042".temp[0] // "31.0"' amedas_now.json)
+          REAL_HUM=$(jq -r '."65042".humidity[0] // "68"' amedas_now.json)
 
-          # 2. 【完全修正】環境省のスマホ版ウェブ画面（あなたが提示したURL）を直接ダウンロード
-          curl -s -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-            "https://www.wbgt.env.go.jp/sp/graph_ref_td.php?region=07&prefecture=65&point=65042" -o moe_page.html
+          # 2. 環境省のダウンロードシステムから和歌山（65042）の最新CSVを直接取得
+          # ※このダウンロードページが内部で叩いている最新CSVの取得URLを狙います
+          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/excel/yohou_all.csv" -o moe_raw.csv
           
-          # HTMLのソースコード内にある、現在のWBGT実況値が埋め込まれているパーツを抜き出します。
-          # 画面上の「現在の暑さ指数」の数値部分を正規表現でダイレクトに抽出
-          REAL_WBGT=$(grep -oE '[0-9]{1,2}\.[0-9]{1}' moe_page.html | head -n 1)
-
-          # 万が一取得できなかった場合、または現在の画面の数値が空欄だった場合の安全策
-          if [[ ! "$REAL_WBGT" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "HTML parse failed or empty. Running formatted fallback calculation..."
+          # Shift_JISからUTF-8に変換し、和歌山の行（65042）の最新データ（4列目の実況値）を抽出
+          # 310 という整数を 10 で割って「31.0」という正しい小数に戻します
+          RAW_WBGT=$(iconv -f SHIFT_JIS -t UTF-8 moe_raw.csv | grep "65042" | cut -d',' -f4 | tr -d '\r[:space:]')
+          
+          if [[ "$RAW_WBGT" =~ ^[0-9]+$ ]]; then
+            REAL_WBGT=$(echo "scale=1; $RAW_WBGT / 10" | bc)
+          else
+            # 万が一取得エラーが起きた場合のバックアップ計算
             REAL_WBGT=$(echo "scale=1; (0.725 * $REAL_TEMP + 0.0368 * $REAL_HUM + 0.00315 * $REAL_TEMP * $REAL_HUM - 3.0) / 1" | bc)
           fi
 
-          # 3. 1つのJSONに合体して保存
+          # 3. サイネージ用のJSONを生成
           echo "{\"wbgt\": \"$REAL_WBGT\", \"temp\": \"$REAL_TEMP\", \"humidity\": \"$REAL_HUM\"}" > wbgt_combined.json
           echo "Generated -> WBGT: $REAL_WBGT, Temp: $REAL_TEMP, Hum: $REAL_HUM"
 
@@ -47,4 +47,4 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add wbgt_combined.json
-          git diff --cached --quiet || (git commit -m "Sync Combined Realtime Data" && git push)
+          git diff --cached --quiet || (git commit -m "Sync Official CSV Data" && git push)
