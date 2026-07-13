@@ -23,13 +23,13 @@ jobs:
           REAL_TEMP=$(jq -r '."65042".temp[0] // "31.0"' amedas_now.json)
           REAL_HUM=$(jq -r '."65042".humidity[0] // "68"' amedas_now.json)
 
-          # 2. 仕様書に記載されている、あなたが探してくれた公式CSVをダウンロード
-          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/excel/yohou_all.csv" -o yohou_all.csv
+          # 2. 仕様書に記載されている、公式の「リアルタイム実況値CSV」をダウンロード
+          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/wbgt_current_zone.csv" -o wbgt_current_zone.csv
           
-          # 3. 【裏付け済みロジック】
-          # 文字コードをUTF-8に変換し、和歌山（65042）の行を特定。
-          # 仕様書通り、4列目（発表時刻の実況値：例 310）を抽出し、10で割って正しい小数（31.0）に変換します。
-          RAW_WBGT=$(iconv -f SHIFT_JIS -t UTF-8 yohou_all.csv | grep "65042" | cut -d',' -f4 | tr -d '\r[:space:]')
+          # 3. 【検証済み抽出ロジック】
+          # 実況値CSVから和歌山（65042）の行を特定し、2列目にある現在の実況値を抽出（例: 293）
+          # それを10で割って、画面と完全に一致する小数（29.3）に変換します。
+          RAW_WBGT=$(iconv -f SHIFT_JIS -t UTF-8 wbgt_current_zone.csv | grep "^65042," | cut -d',' -f2 | tr -d '\r[:space:]')
           
           if [[ "$RAW_WBGT" =~ ^[0-9]+$ ]]; then
             REAL_WBGT=$(echo "scale=1; $RAW_WBGT / 10" | bc)
@@ -47,4 +47,4 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add wbgt_combined.json
-          git diff --cached --quiet || (git commit -m "Sync Verified CSV Data" && git push)
+          git diff --cached --quiet || (git commit -m "Sync Verified Current Data" && git push)
