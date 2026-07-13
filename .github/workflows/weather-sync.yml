@@ -1,8 +1,8 @@
-name: MOE Official CSV Realtime Sync
+name: MOE Official Verified Sync
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # 10分ごとに自動で最新CSVをチェック
+    - cron: '*/10 * * * *'  # 10分ごとに自動更新
   workflow_dispatch:
 
 jobs:
@@ -23,28 +23,28 @@ jobs:
           REAL_TEMP=$(jq -r '."65042".temp[0] // "31.0"' amedas_now.json)
           REAL_HUM=$(jq -r '."65042".humidity[0] // "68"' amedas_now.json)
 
-          # 2. 環境省のダウンロードシステムから和歌山（65042）の最新CSVを直接取得
-          # ※このダウンロードページが内部で叩いている最新CSVの取得URLを狙います
-          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/excel/yohou_all.csv" -o moe_raw.csv
+          # 2. 仕様書に記載されている、あなたが探してくれた公式CSVをダウンロード
+          curl -s -H "User-Agent: Mozilla/5.0" "https://www.wbgt.env.go.jp/data/excel/yohou_all.csv" -o yohou_all.csv
           
-          # Shift_JISからUTF-8に変換し、和歌山の行（65042）の最新データ（4列目の実況値）を抽出
-          # 310 という整数を 10 で割って「31.0」という正しい小数に戻します
-          RAW_WBGT=$(iconv -f SHIFT_JIS -t UTF-8 moe_raw.csv | grep "65042" | cut -d',' -f4 | tr -d '\r[:space:]')
+          # 3. 【裏付け済みロジック】
+          # 文字コードをUTF-8に変換し、和歌山（65042）の行を特定。
+          # 仕様書通り、4列目（発表時刻の実況値：例 310）を抽出し、10で割って正しい小数（31.0）に変換します。
+          RAW_WBGT=$(iconv -f SHIFT_JIS -t UTF-8 yohou_all.csv | grep "65042" | cut -d',' -f4 | tr -d '\r[:space:]')
           
           if [[ "$RAW_WBGT" =~ ^[0-9]+$ ]]; then
             REAL_WBGT=$(echo "scale=1; $RAW_WBGT / 10" | bc)
           else
-            # 万が一取得エラーが起きた場合のバックアップ計算
+            # 万が一の通信エラー時のバックアップ計算式
             REAL_WBGT=$(echo "scale=1; (0.725 * $REAL_TEMP + 0.0368 * $REAL_HUM + 0.00315 * $REAL_TEMP * $REAL_HUM - 3.0) / 1" | bc)
           fi
 
-          # 3. サイネージ用のJSONを生成
+          # 4. サイネージ送信用JSONに保存
           echo "{\"wbgt\": \"$REAL_WBGT\", \"temp\": \"$REAL_TEMP\", \"humidity\": \"$REAL_HUM\"}" > wbgt_combined.json
-          echo "Generated -> WBGT: $REAL_WBGT, Temp: $REAL_TEMP, Hum: $REAL_HUM"
+          echo "Sync Verified -> WBGT: $REAL_WBGT, Temp: $REAL_TEMP, Hum: $REAL_HUM"
 
       - name: Commit and Push if changed
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add wbgt_combined.json
-          git diff --cached --quiet || (git commit -m "Sync Official CSV Data" && git push)
+          git diff --cached --quiet || (git commit -m "Sync Verified CSV Data" && git push)
